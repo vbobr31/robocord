@@ -1244,7 +1244,7 @@ function openConn(){
  document.body.append(el("div",{id:"hwModal",onclick:e=>{if(e.target.id==="hwModal")close();}},box));
 }
 // ===== ЗАДАЧИ: база заданий, проверка результата, баллы и прогресс ученика =====
-const TCAT=[{id:"move",n:"Движение"},{id:"shape",n:"Повороты и фигуры"},{id:"loop",n:"Циклы и вычисления"},{id:"cond",n:"Условия и датчики"},{id:"line",n:"Линия и цвет"},{id:"dist",n:"Расстояние и препятствия"},{id:"maze",n:"Лабиринты"},{id:"arm",n:"Манипулятор"}];
+const TCAT=[{id:"move",n:"Движение"},{id:"shape",n:"Повороты и фигуры"},{id:"loop",n:"Циклы и вычисления"},{id:"cond",n:"Условия и датчики"},{id:"line",n:"Линия и цвет"},{id:"dist",n:"Расстояние и препятствия"},{id:"maze",n:"Лабиринты"},{id:"arm",n:"Манипулятор"},{id:"teacher",n:"От учителя"}];
 const TBASE={1:10,2:15,3:20,4:30};
 const fld=o=>Object.assign({name:"Задача",desc:"",need:[],start:{x:0.3,y:0.6,a:0},obs:[],lines:[],zones:[],finish:null,cans:[],goal:null},o);
 const st0=(x,y,a)=>({x,y,a:a||0});
@@ -1395,7 +1395,7 @@ function taskBar(res,gain,e){
  const bar=$("#taskBar");if(!bar)return;bar.textContent="";
  const t=S&&S.task;if(!t){bar.hidden=true;return;}bar.hidden=false;
  const cat=TCAT.find(c=>c.id===t.cat).n,pr=tpGet()[t.id];
- bar.append(el("div",{class:"tb-h"},el("span",{class:"tb-n"},"Задача "+t.id+" из "+TASKS.length),el("span",{class:"tb-c"},cat),el("span",{class:"tb-p"},"до "+t.pts+" баллов"),
+ bar.append(el("div",{class:"tb-h"},el("span",{class:"tb-n"},t.id>=UT_BASE?"Задача от "+(t.author||"учителя"):"Задача "+t.id+" из "+TASKS.filter(x=>x.id<UT_BASE).length),el("span",{class:"tb-c"},cat),el("span",{class:"tb-p"},"до "+t.pts+" баллов"),
   el("span",{class:"sp"}),el("button",{class:"btn sm ghost",type:"button",onclick:()=>{S.task=null;taskBar();location.hash="#tasks";}},"К списку задач")),
   el("h2",{class:"tb-t"},t.t),el("p",{class:"tb-d"},t.d),
   el("p",{class:"tb-k"},"Баллы: 60% — верный результат, 20% — без касаний, 20% — не больше "+t.par+" блоков."+(pr&&pr.solved?" Ваш лучший результат: "+pr.best+" из "+t.pts+".":"")));
@@ -1407,10 +1407,25 @@ function taskBar(res,gain,e){
   else{box.append(el("b",{},"Пока не решено"),el("p",{},res.msg),el("p",{class:"tb-hint"},"Измените программу и запустите ещё раз. Попыток можно делать сколько угодно."));}
   bar.append(box);}
 }
+// ---- задачи от учителей (с сервера): номера 10000+, проверка собирается из описания ----
+const UT_BASE=10000;
+function userTaskCheck(c){c=c||{};
+ if(c.type==="say")return E.say(...String(c.value||"").split("|").map(x=>x.trim()).filter(Boolean));
+ if(c.type==="at")return E.at((+c.x||0)/100,(+c.y||0)/100,Math.max(2,+c.tol||5)/100);
+ return E.won;}
+function userTaskFrom(x){const d=x.data||{},f=Object.assign({name:x.title,desc:x.desc,need:[],start:{x:0.3,y:0.6,a:0},obs:[],lines:[],zones:[],finish:null,cans:[],goal:null},d.field||{});
+ const t=T("teacher",x.level||2,x.title,x.desc||"",+d.par||5,d.need||[],f,userTaskCheck(d.check),!!d.strict);
+ t.id=UT_BASE+x.id;t.sid=x.id;t.pts=TBASE[t.lv];t.author=x.author;t.cls=x.cls;t.field=Object.assign({},t.field,{name:t.t,desc:t.d});return t;}
+let utLoaded=false;
+async function loadUserTasks(){if(typeof api!=="function")return;
+ try{const list=await api("tasks");for(let i=TASKS.length-1;i>=0;i--)if(TASKS[i].id>=UT_BASE)TASKS.splice(i,1);
+  for(const x of list)try{TASKS.push(userTaskFrom(x));}catch(e){}
+  utLoaded=true;}catch(e){}}
 // ---- экран «Задачи» ----
 const TUI={cat:"all",tab:"list"};
 function tasksShow(){
  const root=$("#tasksRoot");if(!root)return;root.textContent="";
+ if(!utLoaded){utLoaded=true;loadUserTasks().then(()=>{if(location.hash==="#tasks")tasksShow();});}
  const p=tpGet(),max=TASKS.reduce((a,t)=>a+t.pts,0),sum=TASKS.reduce((a,t)=>a+((p[t.id]||{}).best||0),0),solved=TASKS.filter(t=>(p[t.id]||{}).solved).length;
  root.append(el("div",{class:"ts-head"},
   el("div",{class:"ts-card"},el("b",{},String(sum)),el("span",{},"баллов из "+max)),
@@ -1428,7 +1443,7 @@ function tasksShow(){
  const grid=el("div",{class:"ts-grid"});
  for(const t of TASKS.filter(t=>TUI.cat==="all"||t.cat===TUI.cat)){const e=p[t.id]||{};
   grid.append(el("button",{type:"button",class:"ts-t"+(e.solved?" done":""),onclick:()=>{lsSet("rc-task",t.id);location.hash="#sim";}},
-   el("span",{class:"ts-id"},"№"+t.id),el("span",{class:"ts-cat"},TCAT.find(c=>c.id===t.cat).n),
+   el("span",{class:"ts-id"},t.id>=UT_BASE?"★":"№"+t.id),el("span",{class:"ts-cat"},t.id>=UT_BASE?("от "+(t.author||"учителя")+(t.cls?" · "+t.cls:"")):TCAT.find(c=>c.id===t.cat).n),
    el("b",{class:"ts-tt"},t.t),el("span",{class:"ts-lv"},"●".repeat(t.lv)+"○".repeat(4-t.lv)),
    el("span",{class:"ts-pt"},e.solved?"✓ "+e.best+" / "+t.pts+" б.":"до "+t.pts+" б.")));}
  root.append(grid);
@@ -1897,7 +1912,7 @@ function simShow(){
  const T=initThree();if(!T)$("#stage").append(el("div",{class:"empty",style:"position:absolute;inset:auto 10px 10px 10px;background:var(--surface)",text:"3D-режим недоступен в этом браузере. Редактор блоков работает, но поле не отображается."}));
  else if(!T.robot){buildField3D();buildRobot();}
  initBlockly();if(!S.edOk){S.edOk=true;editorInit();}if(S.ws&&S.mode==="blocks")try{Blockly.svgResize(S.ws);}catch(e){}
- const wt=lsGet("rc-task",null);if(wt){lsSet("rc-task",null);loadTask(wt);}
+ const wt=lsGet("rc-task",null);if(wt){lsSet("rc-task",null);if(TASKS.find(t=>t.id===wt))loadTask(wt);else loadUserTasks().then(()=>loadTask(wt));}
  const want=lsGet("rs-task",null);
  if(S.wantMap){const w=S.wantMap;S.wantMap=null;loadPreset(w.id);if(w.edit){S.tab="field";renderTabs();}}
  else if(S.newField){S.fid="free";S.field=cl(S.newField);S.newField=null;S.hist=[];saveField();renderField();buildField3D();resetSim(true);S.tab="field";renderTabs();}
@@ -2446,18 +2461,18 @@ async function cabShow(){const root=$("#cab");if(!root)return;root.textContent="
  if(!ACC.user){const g=el("div",{class:"authgrid"});root.append(g);loginForm(g,"student",cabShow);loginForm(g,"teacher",cabShow);
   root.append(el("p",{class:"hint"},"Логины для учеников выдаёт учитель, для учителей — администратор платформы. Самостоятельно зарегистрироваться можно в приложении РобоКорд или в разделе «Профиль»."));return;}
  if(!isTeacher()){location.hash="#profile";return;}
- const tabs=isAdmin()?[["stats","Статистика"],["teachers","Учителя и школы"],["students","Ученики"],["classes","Мои классы"],["courses","Курсы"],["maps","Все карты"],["site","Сайт: подвал"]]:[["classes","Мои классы"],["courses","Курсы"]];
+ const tabs=isAdmin()?[["stats","Статистика"],["teachers","Учителя и школы"],["students","Ученики"],["classes","Мои классы"],["tasks","Задачи"],["courses","Курсы"],["maps","Все карты"],["site","Сайт: подвал"]]:[["classes","Мои классы"],["tasks","Мои задачи"],["courses","Курсы"]];
  if(!tabs.find(t=>t[0]===CAB.tab))CAB.tab=tabs[0][0];
  root.append(el("div",{class:"pcard"},el("div",{},el("h2",{},(isAdmin()?"Админ-панель · ":"Кабинет учителя · ")+fio(ACC.user)),el("p",{class:"hint"},"Логин: "+ACC.user.login)),
   el("button",{class:"btn ghost",type:"button",onclick:async()=>{try{await api("logout",{body:{}});}catch(e){}accSet(null,null);cabShow();}},"Выйти")),
   el("div",{class:"seg wrapseg"},...tabs.map(([k,n])=>el("button",{type:"button","aria-pressed":String(CAB.tab===k),onclick:()=>{CAB.tab=k;cabShow();}},n))));
  const box=el("div",{class:"cabbox"});root.append(box);
- try{await ({stats:cabStats,teachers:cabTeachers,students:cabStudents,classes:cabClasses,courses:cabCourses,maps:cabMaps,site:cabSite})[CAB.tab](box);}
+ try{await ({stats:cabStats,teachers:cabTeachers,students:cabStudents,classes:cabClasses,tasks:cabTasks,courses:cabCourses,maps:cabMaps,site:cabSite})[CAB.tab](box);}
  catch(e){box.append(note(e.message,"bad"));}}
 async function cabStats(box){const s=await api("admin/stats");
  const card=(n,l,k)=>el("div",{class:"stat"+(k?" "+k:"")},el("b",{},String(n)),el("span",{},l));
  box.append(el("div",{class:"stats"},card(s.online,"учеников онлайн","live"),card(s.students,"учеников зарегистрировано"),card(s.newWeek,"новых учеников за неделю"),card(s.teachers,"учителей"),
-  card(s.orgs,"образовательных организаций"),card(s.classes,"классов"),card(s.solutions,"сохранённых решений"),card(s.maps,"карт ("+s.mapsPublic+" в общем доступе)"),card(s.onlineAll,"всего на сайте и в приложении сейчас")),
+  card(s.orgs,"образовательных организаций"),card(s.classes,"классов"),card(s.solutions,"сохранённых решений"),card(s.tasks||0,"задач от учителей"),card(s.maps,"карт ("+s.mapsPublic+" в общем доступе)"),card(s.onlineAll,"всего на сайте и в приложении сейчас")),
   el("p",{class:"hint"},"«Онлайн» — кто был на сайте или в приложении за последние 5 минут."),
   el("button",{class:"btn sm",type:"button",onclick:()=>cabShow()},"Обновить"));}
 async function cabTeachers(box){const [orgs,ts]=await Promise.all([api("admin/orgs"),api("admin/teachers")]);
@@ -2514,6 +2529,49 @@ async function cabCourses(box,editing){const list=await api("courses");
  box.append(f,el("h3",{class:"mh"},"Курсы на сайте ("+list.length+")"),...list.map(c=>el("div",{class:"srow"},el("div",{},el("b",{},c.title),el("small",{},(c.level||"")+" · автор "+(c.author||"—"))),
   (isAdmin()||c.author_id===ACC.user.id)?el("div",{class:"bar"},el("button",{class:"btn sm",type:"button",onclick:()=>{box.textContent="";cabCourses(box,c);}},"Изменить"),
    el("button",{class:"btn sm ghost",type:"button",onclick:async()=>{if(!confirm("Удалить курс «"+c.title+"»?"))return;await api("courses/"+c.id,{method:"DELETE"});cabShow();}},"Удалить")):null)));}
+// ---- свои задачи учителя: поле + что проверять + кому видна ----
+const CHECKS=[["finish","Доехать до финиша (на поле нужен финиш)"],["goal","Отвезти все банки в зону (нужны банки и зона)"],["say","Показать на экране ответ"],["at","Остановиться в точке поля"]];
+async function cabTasks(box,editing){
+ const [list,cls]=await Promise.all([api("tasks"),api("classes")]);const mine=list.filter(t=>t.mine||isAdmin());
+ const d=editing?editing.data:{},ck=d.check||{type:"finish"};
+ const curField=(lsGet("rs-field",null)||{}).field;
+ const fieldOpts=[["cur","Текущее поле из «Программирования»"+(curField?"":" (не найдено)")],...Object.keys(PRESETS).map(k=>["p:"+k,"Готовое: "+PRESETS[k].name]),...myMaps().map(m=>["m:"+m.id,"Моя карта: "+m.name])];
+ if(editing)fieldOpts.unshift(["keep","Оставить поле задачи"]);
+ const sel=(name,opts,val)=>el("select",{name},...opts.map(([v,t])=>el("option",{value:v,selected:String(v)===String(val)},t)));
+ const chk=(name,lab,on)=>el("label",{class:"hwset"},el("input",{type:"checkbox",name,checked:!!on}),lab);
+ const need=new Set(d.need||[]);
+ const f=el("form",{class:"authf wide"},el("h3",{},editing?"Изменить задачу":"Новая задача"),
+  field("Название",{name:"title",required:true,value:editing?editing.title:""}),
+  el("label",{class:"fld"},el("span",{},"Что нужно сделать (увидит ученик)"),el("textarea",{name:"desc",rows:"3"},editing?editing.desc:"")),
+  el("label",{class:"fld"},el("span",{},"Сложность"),sel("level",[[1,"● лёгкая — 10 б."],[2,"●● средняя — 15 б."],[3,"●●● сложная — 20 б."],[4,"●●●● олимпиадная — 30 б."]],editing?editing.level:2)),
+  el("label",{class:"fld"},el("span",{},"Поле"),sel("field",fieldOpts,editing?"keep":"cur")),
+  el("p",{class:"fine"},"Нарисуйте поле на вкладке «Поле» в разделе «Программирование» — оно станет «текущим полем». Там же можно поставить финиш, банки и зону для банок."),
+  el("label",{class:"fld"},el("span",{},"Как проверять решение"),sel("check",CHECKS,ck.type)),
+  field("Ответ на экране (для «Показать ответ»; несколько вариантов — через |)",{name:"value",value:ck.value||""}),
+  el("div",{class:"bar"},field("Точка: x, см",{name:"x",type:"number",value:ck.x||""}),field("y, см",{name:"y",type:"number",value:ck.y||""}),field("допуск, см",{name:"tol",type:"number",value:ck.tol||5})),
+  el("div",{class:"fld"},el("span",{},"Робот: что нужно для задачи"),el("div",{class:"bar"},chk("n_cL","датчик цвета слева",need.has("cL")),chk("n_cR","датчик цвета справа",need.has("cR")),chk("n_dist","расстояние",need.has("dist")),chk("n_touch","касание",need.has("touch")),chk("n_claw","клешня",need.has("claw")))),
+  chk("strict","Нельзя касаться стен и препятствий",d.strict),
+  field("Эталон: за сколько блоков решается (для баллов)",{name:"par",type:"number",min:"1",value:d.par||5}),
+  el("label",{class:"fld"},el("span",{},"Кому видна задача"),sel("to",[["all","Всем моим ученикам"],...cls.map(c=>["c"+c.id,"Только классу "+c.name]),["public","Всем пользователям РобоКорд"]],editing?(editing.public?"public":editing.class_id?"c"+editing.class_id:"all"):"all")),
+  el("div",{class:"bar"},el("button",{class:"btn pri",type:"submit"},editing?"Сохранить":"Создать задачу"),editing?el("button",{class:"btn ghost",type:"button",onclick:()=>cabShow()},"Отмена"):null));
+ const msg=note("");f.append(msg);
+ f.onsubmit=async e=>{e.preventDefault();const v=Object.fromEntries(new FormData(f));
+  let fld=null;if(v.field==="keep")fld=d.field;else if(v.field==="cur")fld=curField;else if(v.field.startsWith("p:"))fld=cl(PRESETS[v.field.slice(2)]);else{const m=myMaps().find(x=>"m:"+x.id===v.field);fld=m&&m.field;}
+  if(!fld||!fld.start){msg.textContent="Поле не найдено. Откройте «Программирование», выберите или нарисуйте поле и вернитесь сюда.";msg.className="msg bad";return;}
+  fld=cl(fld);delete fld.name;delete fld.desc;
+  if(v.check==="finish"&&!fld.finish){msg.textContent="На выбранном поле нет финиша. Поставьте финиш инструментом «Финиш» или выберите другую проверку.";msg.className="msg bad";return;}
+  if(v.check==="goal"&&!(fld.goal&&(fld.cans||[]).length)){msg.textContent="На поле нет банок или зоны для банок.";msg.className="msg bad";return;}
+  if(v.check==="say"&&!v.value.trim()){msg.textContent="Впишите ответ, который должен показать робот.";msg.className="msg bad";return;}
+  const nd=["cL","cR","dist","touch","claw"].filter(k=>v["n_"+k]);if(v.check==="goal"&&!nd.includes("claw"))nd.push("claw");
+  const body={title:v.title,desc:v.desc,level:+v.level,public:v.to==="public",class_id:v.to.startsWith("c")?+v.to.slice(1):null,
+   data:{field:fld,need:nd,strict:!!v.strict,par:+v.par||5,check:{type:v.check,value:v.value,x:+v.x,y:+v.y,tol:+v.tol||5}}};
+  try{if(editing)await api("tasks/"+editing.id,{method:"PUT",body});else await api("tasks",{body});utLoaded=false;cabShow();}
+  catch(err){msg.textContent=err.message;msg.className="msg bad";}};
+ box.append(f,el("h3",{class:"mh"},(isAdmin()?"Задачи учителей":"Мои задачи")+" ("+mine.length+")"),
+  mine.length?el("div",{class:"slist2"},...mine.map(t=>el("div",{class:"srow"},el("div",{},el("b",{},t.title),el("small",{},(t.public?"всем пользователям":t.cls?"класс "+t.cls:"все мои ученики")+" · автор "+t.author+" · "+when(t.created_at))),
+   el("div",{class:"bar"},el("button",{class:"btn sm pri",type:"button",onclick:async()=>{utLoaded=false;await loadUserTasks();lsSet("rc-task",UT_BASE+t.id);location.hash="#sim";}},"Проверить в симуляторе"),
+    el("button",{class:"btn sm",type:"button",onclick:()=>{box.textContent="";cabTasks(box,t);}},"Изменить"),
+    el("button",{class:"btn sm ghost",type:"button",onclick:async()=>{if(!confirm("Удалить задачу «"+t.title+"»?"))return;await api("tasks/"+t.id,{method:"DELETE"});utLoaded=false;cabShow();}},"Удалить"))))):el("p",{class:"hint"},"Задач пока нет."));}
 async function cabMaps(box){box.append(el("p",{class:"hint"},"Все карты пользователей, включая закрытые."));const b=el("div");box.append(b);await publicMapsInto(b,true);}
 async function cabSite(box){const s=await api("settings");
  const f=el("form",{class:"authf wide"},el("h3",{},"Подвал сайта"),
