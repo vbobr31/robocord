@@ -2388,8 +2388,11 @@ function loginForm(root,kind,done){
 // ---------- профиль (приложение и сайт) ----------
 async function profileShow(){const root=$("#profileRoot");if(!root)return;root.textContent="";
  if(!ACC.user){const g=el("div",{class:"authgrid"});root.append(g);
+  // на сайте регистрации нет: учителям логины выдаёт администратор, ученикам — учитель
+  if(BUILD==="site"){loginForm(g,"student",profileShow);loginForm(g,"teacher",profileShow);
+   root.append(el("p",{class:"hint"},"Регистрации на сайте нет. Логин и пароль ученику выдаёт учитель, учителю — администратор платформы."));return;}
   loginForm(g,"student",profileShow);loginForm(g,"reg",profileShow);
-  if(BUILD==="app")root.append(el("p",{class:"hint"},"Учителя и администраторы входят здесь же, со своими логином и паролем."));
+  root.append(el("p",{class:"hint"},"Учителя и администраторы входят здесь же, со своими логином и паролем."));
   return;}
  const u=ACC.user;
  root.append(el("div",{class:"pcard"},el("div",{},el("h2",{},fio(u)),el("p",{class:"hint"},"Логин: "+u.login+" · "+(ROLE[u.role]||u.role))),
@@ -2398,7 +2401,7 @@ async function profileShow(){const root=$("#profileRoot");if(!root)return;root.t
  const sols=el("div",{},note("Загрузка…")),maps=el("div",{},note("Загрузка…"));
  root.append(el("h2",{class:"mh"},"Сохранённые решения"),sols,el("h2",{class:"mh"},"Мои карты на сервере"),maps);
  try{const list=await api("solutions");sols.textContent="";
-  if(!list.length)sols.append(el("p",{class:"hint"},"Пока пусто. В редакторе нажмите «Сохранить решение» — программа сохранится сюда вместе с заданием."));
+  if(!list.length)sols.append(el("p",{class:"hint"},"Пока пусто. В «Программировании» нажмите «Сохранить решение» — программа сохранится сюда вместе с заданием."));
   else sols.append(el("div",{class:"slist2"},...list.map(s=>el("div",{class:"srow"},
    el("div",{},el("b",{},s.title),el("small",{},when(s.created_at)+" · "+(s.mode==="cpp"?"C++":"блоки")+(s.ok?" · решено, "+s.points+" б.":""))),
    el("div",{class:"bar"},el("button",{class:"btn sm pri",type:"button",onclick:async()=>{const d=await api("solutions/"+s.id);openRc(JSON.parse(d.data),s.title);}},"Перейти к коду"),
@@ -2412,7 +2415,7 @@ async function profileShow(){const root=$("#profileRoot");if(!root)return;root.t
 function openRc(o,title){S.pendingFile=()=>{try{rcOpen(o,title);}catch(e){setMsg(e.message,"bad");}};location.hash="#sim";if(simBooted){const f=S.pendingFile;S.pendingFile=null;setTimeout(f,200);}}
 // «Сохранить решение»: на сервер, если вошли; иначе — предложение войти
 async function saveSolution(){
- if(!ACC.user){setMsg("Чтобы сохранять решения, войдите в аккаунт на вкладке «Профиль». Без входа можно сохранить файл.","bad");return;}
+ if(!ACC.user){setMsg("Чтобы сохранять решения, войдите в аккаунт на вкладке «Профиль»"+(BUILD==="site"?" (логин выдаёт учитель)":"")+". Без входа можно сохранить файл.","bad");return;}
  const t=S.task,o=rcPack("solution"),ok=!!(S.lastOk&&t&&S.lastOk.task===t.id);
  const title=t?("Задача "+t.id+". "+t.t):((fieldDef(S.fid)||S.field).name||"Программа");
  try{await api("solutions",{body:{task_id:t?t.id:null,title,mode:S.mode,data:o,ok,points:ok?S.lastOk.pts:0}});setMsg("Решение «"+title+"» сохранено в профиле.","ok");}
@@ -2434,7 +2437,7 @@ async function syncMapToServer(rec,isPublic){if(!ACC.user)return null;
  if(rec.sid){await api("maps/"+rec.sid,{method:"PUT",body});return rec.sid;}
  const r=await api("maps",{body});return r.id;}
 async function myNetMapsInto(box){box.textContent="";
- if(!ACC.user){box.append(el("p",{class:"hint"},"Войдите в «Профиле», чтобы карты хранились в аккаунте и были доступны с любого компьютера."));return;}
+ if(!ACC.user){box.append(el("p",{class:"hint"},"Войдите в «Профиле», чтобы карты хранились в аккаунте и были доступны с любого компьютера."+(BUILD==="site"?" Логин выдаёт учитель.":"")));return;}
  box.append(note("Загрузка…"));
  try{const list=await api("maps/mine");box.textContent="";
   box.append(list.length?el("div",{class:"mgrid"},...list.map(netMapCard)):el("p",{class:"hint"},"В аккаунте пока нет карт. Нарисуйте поле на вкладке «Поле» в «Программировании» и нажмите «Сохранить карту»."));}
@@ -2459,7 +2462,7 @@ async function cabShow(){const root=$("#cab");if(!root)return;root.textContent="
  {const h=$("#v-cab h1"),p=$("#v-cab > p.hint");if(h)h.textContent=isAdmin()?"Админ-панель":isTeacher()?"Кабинет учителя":"Учителям и школам";if(p)p.hidden=isTeacher();}
  if(!ACC.user&&BUILD==="app"){location.hash="#profile";return;}
  if(!ACC.user){const g=el("div",{class:"authgrid"});root.append(g);loginForm(g,"student",cabShow);loginForm(g,"teacher",cabShow);
-  root.append(el("p",{class:"hint"},"Логины для учеников выдаёт учитель, для учителей — администратор платформы. Самостоятельно зарегистрироваться можно в приложении РобоКорд или в разделе «Профиль»."));return;}
+  root.append(el("p",{class:"hint"},"Регистрации на сайте нет. Логин и пароль ученику выдаёт учитель в своём кабинете, учителю — администратор платформы."));return;}
  if(!isTeacher()){location.hash="#profile";return;}
  const tabs=isAdmin()?[["stats","Статистика"],["teachers","Учителя и школы"],["students","Ученики"],["classes","Мои классы"],["tasks","Задачи"],["courses","Курсы"],["maps","Все карты"],["site","Сайт: подвал"]]:[["classes","Мои классы"],["tasks","Мои задачи"],["courses","Курсы"]];
  if(!tabs.find(t=>t[0]===CAB.tab))CAB.tab=tabs[0][0];
