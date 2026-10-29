@@ -265,7 +265,7 @@ form.inline{display:flex;gap:8px;flex-wrap:wrap}form.inline input{font:inherit;p
 <section class="view" id="v-sim" hidden>
 <div id="taskBar" class="taskbar" hidden></div>
 <h1>Программирование</h1>
-<p class="hint" style="font-size:17px;max-width:72ch;margin-top:12px">Выберите поле, настройте робота и составьте программу из блоков или на C++. Проверьте её в 3D, затем запустите на настоящем роботе. Если не знаете, с чего начать, нажмите «Пример».</p>
+<p class="hint" style="font-size:17px;max-width:72ch;margin-top:12px">Выберите поле, настройте робота и составьте программу из блоков или на C++. Проверьте её в 3D<span data-only="app">, затем запустите на настоящем роботе</span>. Если не знаете, с чего начать, нажмите «Пример».</p>
 <div class="simgrid" style="margin-top:20px">
 <div class="simL">
 <div class="bar" style="margin:0 0 8px"><span class="seg" id="modeSeg" role="group" aria-label="Язык программы"><button type="button" data-m="blocks" aria-pressed="true">Блоки</button><button type="button" data-m="cpp" aria-pressed="false">C++</button></span><span class="sp"></span><button class="btn sm" id="bEx" type="button">Пример</button><button class="btn sm ghost" id="bToCpp" type="button">Блоки → C++</button><button class="btn sm ghost" id="bClr" type="button">Очистить</button><button class="btn sm ghost" id="bZout" type="button" aria-label="Уменьшить">−</button><button class="btn sm ghost" id="bZin" type="button" aria-label="Увеличить">+</button></div>
@@ -277,7 +277,7 @@ form.inline{display:flex;gap:8px;flex-wrap:wrap}form.inline input{font:inherit;p
 <div class="stage" id="stage"><canvas id="cv" aria-label="3D-поле с роботом"></canvas><button class="fsbtn" id="bFs" type="button" title="3D на весь экран">На весь экран</button><div class="fsbar"><button class="btn pri sm" id="fsRun" type="button">Вывести в 3D</button><button class="btn sm" id="fsStop" type="button" disabled>Стоп</button><button class="btn sm" id="fsReset" type="button">Сброс</button><button class="btn sm ghost" id="fsExit" type="button">Свернуть</button></div><div class="hud"><span id="hTime">время 0.0 с</span><span id="hTry">попыток 0</span><span id="hHit">касаний: 0</span><span id="hSay"></span></div></div>
 <div class="sensors" id="sensRow"></div>
 <div class="bar">
-<button class="btn pri" id="bRun" type="button">Вывести в 3D</button><button class="btn" id="bConn" type="button">Подключить робота</button><button class="btn pri" id="bRunHw" type="button" disabled>Запустить на роботе</button><button class="btn" id="bStop" type="button" disabled>Стоп</button><button class="btn" id="bReset" type="button">Сброс</button>
+<button class="btn pri" id="bRun" type="button">Вывести в 3D</button><button class="btn" id="bConn" type="button" data-only="app">Подключить робота</button><button class="btn pri" id="bRunHw" type="button" disabled data-only="app">Запустить на роботе</button><button class="btn" id="bStop" type="button" disabled>Стоп</button><button class="btn" id="bReset" type="button">Сброс</button>
 <span class="seg" id="spd" role="group" aria-label="Скорость"><button type="button" data-s="1" aria-pressed="true">×1</button><button type="button" data-s="2" aria-pressed="false">×2</button><button type="button" data-s="4" aria-pressed="false">×4</button><button type="button" data-s="8" aria-pressed="false">×8</button></span>
 <span class="seg" id="cam" role="group" aria-label="Камера"><button type="button" data-c="free" aria-pressed="true">Обзор</button><button type="button" data-c="top" aria-pressed="false">Сверху</button><button type="button" data-c="follow" aria-pressed="false">За роботом</button></span>
 </div>
@@ -1366,7 +1366,7 @@ TASKS.forEach((t,i)=>{t.id=i+1;t.pts=TBASE[t.lv];t.field=Object.assign({},t.fiel
  for(const k of (t.need||[]))if(!t.field.need)t.field.need=[];t.field.need=t.need;});
 // ---- прогресс (localStorage) ----
 const tpGet=()=>lsGet("rc-tasks",{});
-const tpSet=v=>lsSet("rc-tasks",v);
+const tpSet=v=>{lsSet("rc-tasks",v);if(typeof draftSoon==="function")draftSoon();};
 function tScore(t,s,blocks){ // возвращает {ok,msg,items,pts}
  if(s.fail)return {ok:false,msg:s.fail,pts:0};
  let err=t.chk(s);
@@ -1848,7 +1848,7 @@ function themeFor(){const dark=isDark(),key=dark?"rsD":"rsL";if(!THEMES[key]){TH
   fontStyle:{family:"Onest, system-ui, sans-serif",weight:"600",size:12},
   componentStyles:{workspaceBackgroundColour:dark?"#0F1C1E":"#F6F8F4",toolboxBackgroundColour:dark?"#142124":"#FFFFFF",toolboxForegroundColour:dark?"#E7F0EB":"#13222B",flyoutBackgroundColour:dark?"#1A2C2F":"#EEF2EE",flyoutForegroundColour:dark?"#E7F0EB":"#13222B",flyoutOpacity:1,scrollbarColour:dark?"#4A5C62":"#9FB2AE",scrollbarOpacity:.6,insertionMarkerColour:"#13222B",insertionMarkerOpacity:.3,cursorColour:"#F2B300"}});}
  return THEMES[key];}
-function saveWs(){if(!S.ws)return;try{lsSet("rs-ws2",Blockly.serialization.workspaces.save(S.ws));}catch(e){}}
+function saveWs(){if(!S.ws)return;try{lsSet("rs-ws2",Blockly.serialization.workspaces.save(S.ws));}catch(e){}if(typeof draftSoon==="function")draftSoon();}
 function loadWs(json){try{Blockly.serialization.workspaces.load(json,S.ws);return true;}catch(e){return false;}}
 function initBlockly(){
  const box=$("#blockly");if(S.ws)return;
@@ -1863,7 +1863,7 @@ function initBlockly(){
   try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",re);new MutationObserver(re).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});}catch(e){}
  }catch(e){S.ws=null;box.replaceChildren(el("div",{class:"empty",text:"Не удалось запустить редактор блоков: "+e.message}));}}
 // ---------- запуск ----------
-function updBtns(){$("#bRun").disabled=S.running;const fr=$("#fsRun");if(fr){fr.disabled=S.running;$("#fsStop").disabled=!S.running;}$("#bRunHw").disabled=S.running||!HW.cur;$("#bConn").disabled=S.running;$("#bStop").disabled=!S.running;}
+function updBtns(){$("#bRun").disabled=S.running;if(!$("#bConn")){const fr=$("#fsRun");if(fr){fr.disabled=S.running;$("#fsStop").disabled=!S.running;}$("#bStop").disabled=!S.running;return;}const fr=$("#fsRun");if(fr){fr.disabled=S.running;$("#fsStop").disabled=!S.running;}$("#bRunHw").disabled=S.running||!HW.cur;$("#bConn").disabled=S.running;$("#bStop").disabled=!S.running;}
 function resetSim(quiet){S.running=false;S.gen=null;if(S.ws)try{S.ws.highlightBlock(null);}catch(e){}S.sim=new Sim(S.field,S.cfg);buildCans3D();updBtns();if(!quiet)setMsg("Робот возвращён на старт.");syncRobot();}
 function startRun(hw){
  if(S.running)return;
@@ -1896,7 +1896,7 @@ function simInit(){
  if(sv&&fieldDef(sv.id)&&sv.field&&sv.field.start){S.fid=sv.id;S.field=sv.field;if(!S.field.obs)S.field.obs=[];if(!S.field.lines)S.field.lines=[];if(!S.field.zones)S.field.zones=[];}else{S.fid="free";S.field=cl(PRESETS.free);}
  S.cfg=Object.assign({},DEF_CFG,lsGet("rs-cfg",{}));
  document.querySelectorAll("#simTabs button").forEach(b=>b.onclick=()=>{S.tab=b.dataset.t;renderTabs();});
- $("#bRun").onclick=()=>startRun(false);$("#bRunHw").onclick=()=>startRun(true);$("#bConn").onclick=openConn;$("#bStop").onclick=stopRun;$("#bReset").onclick=()=>{if(S.running){S.ctx.stop=true;}resetSim();};
+ $("#bRun").onclick=()=>startRun(false);if($("#bConn")){$("#bRunHw").onclick=()=>startRun(true);$("#bConn").onclick=openConn;}$("#bStop").onclick=stopRun;$("#bReset").onclick=()=>{if(S.running){S.ctx.stop=true;}resetSim();};
  $("#bEx").onclick=()=>{if(S.running)return;if(!EXAMPLES[S.fid]){setMsg("Для этой карты нет готового примера — составьте программу сами.","bad");return;}
   if(S.mode==="cpp"){cppSet(blocksToCpp(EXAMPLES[S.fid]()));setMsg("Пример загружен. Нажмите «Вывести в 3D».");return;}
   if(!S.ws)return;loadWs(EXAMPLES[S.fid]());saveWs();setMsg("Пример загружен. Нажмите «Вывести в 3D».");};
@@ -2255,7 +2255,7 @@ int main() {
 }
 `;
 function cppGet(){const t=$("#cppEd");return t?t.value:lsGet("rs-cpp",CPP_START);}
-function cppSet(v){const t=$("#cppEd");if(t){t.value=v;cppGutter();}lsSet("rs-cpp",v);}
+function cppSet(v){const t=$("#cppEd");if(t){t.value=v;cppGutter();}lsSet("rs-cpp",v);if(typeof draftSoon==="function")draftSoon();}
 function cppCount(){return cppGet().replace(/\/\/.*$/mg,"").replace(/\/\*[\s\S]*?\*\//g,"").split(/;|\bif\b|\bwhile\b|\bfor\b/).length-2;}
 // номера строк и подсветка выполняемой строки
 function cppGutter(){const t=$("#cppEd"),g=$("#cppGut");if(!t||!g)return;const n=t.value.split("\n").length;
@@ -2264,7 +2264,7 @@ let cppLast=null;
 function cppMark(n,err){const g=$("#cppGut");if(!g)return;if(cppLast)cppLast.className="";cppLast=null;
  if(n&&g.children[n-1]){cppLast=g.children[n-1];cppLast.className=err?"err":"cur";
   if(err){const t=$("#cppEd"),lines=t.value.split("\n");let p=0;for(let i=0;i<n-1;i++)p+=lines[i].length+1;t.focus();t.setSelectionRange(p,p+lines[n-1].length);}}}
-function setMode(m){S.mode=m;lsSet("rs-mode",m);
+function setMode(m){S.mode=m;lsSet("rs-mode",m);if(typeof draftSoon==="function")draftSoon();
  document.querySelectorAll("#modeSeg button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.m===m)));
  $("#blockly").hidden=m!=="blocks";$("#cppBox").hidden=m!=="cpp";$("#bZin").hidden=$("#bZout").hidden=m!=="blocks";$("#bToCpp").hidden=m!=="blocks";
  $("#blHint").textContent=m==="cpp"?"Пишите программу на C++. Команды робота — в списке «Команды» под редактором. Во время работы подсвечивается выполняемая строка.":"Перетаскивайте блоки из палитры слева. Блок «когда программа запущена» начинает программу. Во время работы подсвечивается выполняемый блок.";
@@ -2277,7 +2277,7 @@ function cppInit(){const box=$("#cppBox");if(!box||box.dataset.ok)return;box.dat
   el("details",{class:"cpphelp"},el("summary",{},"Команды робота"),el("ul",{},...Object.entries(CPP_API).filter(([k,v])=>v[2]).map(([k,v])=>el("li",{},el("code",{},v[2].split(" — ")[0]),v[2].includes(" — ")?" — "+v[2].split(" — ")[1]:""))),
    el("p",{class:"hint"},"Есть также: if/else, while, do-while, for, break, continue, свои функции, int, double, bool, string, cout << … << endl, abs, sqrt, pow, min, max, round, random(от, до). Цвета: BLACK, WHITE, RED, GREEN, BLUE, YELLOW.")));
  let tm=null;
- ta.addEventListener("input",()=>{cppGutter();clearTimeout(tm);tm=setTimeout(()=>lsSet("rs-cpp",ta.value),300);});
+ ta.addEventListener("input",()=>{cppGutter();clearTimeout(tm);tm=setTimeout(()=>{lsSet("rs-cpp",ta.value);draftSoon();},300);});
  ta.addEventListener("scroll",cppGutter);
  ta.addEventListener("keydown",e=>{
   if(e.key==="Tab"){e.preventDefault();const s=ta.selectionStart;ta.setRangeText("    ",s,ta.selectionEnd,"end");cppGutter();}
@@ -2369,7 +2369,25 @@ function credsBox(list,title){const txt=list.map(x=>(x.name?x.name+"\t":"")+x.lo
   el("table",{},el("tbody",{},...list.map(x=>el("tr",{},x.name?el("td",{},x.name):null,el("td",{},el("code",{},x.login)),el("td",{},el("code",{},x.password)))))),
   el("button",{class:"btn sm",type:"button",onclick:()=>download("robocord_logins.txt",txt)},"Скачать список"));}
 
-// ---------- вход и регистрация ----------
+// ---------- общий черновик: текущая программа и прогресс задач — одинаковые на сайте и в приложении ----------
+let draftT=null,draftBusy=false;
+function draftPack(){return {mode:S.mode,blocks:lsGet("rs-ws2",null),cpp:lsGet("rs-cpp",null),progress:lsGet("rc-tasks",{}),ts:Date.now()};}
+function draftSoon(){if(!ACC.token||draftBusy)return;lsSet("rc-draft-ts",Date.now());clearTimeout(draftT);draftT=setTimeout(()=>{api("draft",{method:"PUT",body:{data:draftPack(),ts:Date.now()}}).catch(()=>{});},2500);}
+// при входе и при запуске: если в аккаунте программа новее, чем на этом устройстве, — подставить её
+async function draftPull(){if(!ACC.token)return;let d;try{d=await api("draft");}catch(e){return;}
+ const local=lsGet("rc-draft-ts",0);
+ if(!d||!d.data){draftSoon();return;}
+ if((d.ts||0)<=local)return;
+ draftBusy=true;try{const x=d.data;
+  if(x.progress){const p=Object.assign({},lsGet("rc-tasks",{}));for(const k in x.progress){const a=p[k],b=x.progress[k];p[k]=!a?b:{att:Math.max(a.att||0,b.att||0),best:Math.max(a.best||0,b.best||0),solved:!!(a.solved||b.solved),t:a.t||b.t,blocks:a.blocks||b.blocks,date:a.date||b.date};}lsSet("rc-tasks",p);}
+  if(x.blocks)lsSet("rs-ws2",x.blocks);if(x.cpp!=null)lsSet("rs-cpp",x.cpp);if(x.mode)lsSet("rs-mode",x.mode);
+  if(typeof S!=="undefined"&&S.ws&&x.blocks){try{loadWs(x.blocks);}catch(e){}}
+  if(x.cpp!=null&&typeof cppSet==="function"&&$("#cppEd"))$("#cppEd").value=x.cpp,cppGutter();
+  if(x.mode&&typeof setMode==="function"&&S.edOk)setMode(x.mode);else if(x.mode)S.mode=x.mode;
+  lsSet("rc-draft-ts",d.ts);
+  if(typeof setMsg==="function"&&$("#simMsg"))setMsg("Загружена программа из вашего аккаунта (сохранена "+when(d.updated_at)+").","ok");
+ }finally{draftBusy=false;}}
+// ---------- вход ----------
 function loginForm(root,kind,done){
  const f=el("form",{class:"authf"}),msg=note("");
  const L=field("Логин",{name:"login",autocomplete:"username",required:true}),P=field("Пароль",{name:"password",type:"password",autocomplete:kind==="reg"?"new-password":"current-password",required:true});
@@ -2380,7 +2398,7 @@ function loginForm(root,kind,done){
  f.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(f));
   if(kind==="reg"&&d.password!==d.password2){msg.textContent="Пароли не совпадают.";msg.className="msg bad";return;}
   msg.textContent="Подождите…";msg.className="msg";
-  try{const r=await api(kind==="reg"?"register":"login",{body:{login:d.login,password:d.password,password2:d.password2,role:kind==="teacher"?"teacher":undefined}});accSet(r.user,r.token);
+  try{const r=await api(kind==="reg"?"register":"login",{body:{login:d.login,password:d.password,password2:d.password2,role:kind==="teacher"?"teacher":undefined}});accSet(r.user,r.token);draftPull();
    if(r.user.role!=="student"&&location.hash!=="#cab"){location.hash="#cab";return;}done();}
   catch(err){msg.textContent=err.message;msg.className="msg bad";}};
  root.append(f);}
@@ -2388,11 +2406,11 @@ function loginForm(root,kind,done){
 // ---------- профиль (приложение и сайт) ----------
 async function profileShow(){const root=$("#profileRoot");if(!root)return;root.textContent="";
  if(!ACC.user){const g=el("div",{class:"authgrid"});root.append(g);
-  // на сайте регистрации нет: учителям логины выдаёт администратор, ученикам — учитель
+  // регистрации нет: учителям логины выдаёт администратор, ученикам — учитель
   if(BUILD==="site"){loginForm(g,"student",profileShow);loginForm(g,"teacher",profileShow);
    root.append(el("p",{class:"hint"},"Регистрации на сайте нет. Логин и пароль ученику выдаёт учитель, учителю — администратор платформы."));return;}
-  loginForm(g,"student",profileShow);loginForm(g,"reg",profileShow);
-  root.append(el("p",{class:"hint"},"Учителя и администраторы входят здесь же, со своими логином и паролем."));
+  loginForm(g,"student",profileShow);
+  root.append(el("p",{class:"hint"},"Вход по логину и паролю, которые выдал учитель (учителям — администратор платформы). Это тот же аккаунт, что и на сайте РобоКорд: программа и решения сохраняются в нём и открываются и на сайте, и в приложении."));
   return;}
  const u=ACC.user;
  root.append(el("div",{class:"pcard"},el("div",{},el("h2",{},fio(u)),el("p",{class:"hint"},"Логин: "+u.login+" · "+(ROLE[u.role]||u.role))),
@@ -2586,6 +2604,6 @@ async function cabSite(box){const s=await api("settings");
  f.onsubmit=async e=>{e.preventDefault();await api("settings",{method:"PUT",body:Object.fromEntries(new FormData(f))});msg.textContent="Сохранено.";msg.className="msg ok";footerShow();};
  box.append(f);}
 // ===== запуск страницы =====
-accNav();if(BUILD==="site")footerShow();route();
+accNav();if(BUILD==="site")footerShow();route();draftPull();
 </script>
 </body></html>
