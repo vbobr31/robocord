@@ -1079,7 +1079,7 @@ HW.adapters.iq1=makeVex("iq1","usb");
 // ---------- АДАПТЕР: свой робот RoboCord / любой робот с последовательным портом (Web Serial) ----------
 // Протокол: строки JSON. ПК → робот: {"m":[лев,прав]} (проценты -100..100).
 // Робот → ПК: {"tl":градусы_лев,"tr":градусы_прав,"gyro":°,"refl":0-100,"color":"black|white|...","dist":см,"touch":0/1}
-HW.adapters.serial={name:"Свой робот / RoboCord (USB-Serial)",hint:"Любой контроллер с USB-портом по протоколу RoboCord (строки JSON, 115200).",ready:true,
+HW.adapters.serial={name:"RoboCord (USB)",hint:"Любой контроллер с USB-портом по протоколу RoboCord (строки JSON, 115200).",ready:true,
  async connect(){
   if(!navigator.serial)throw new Error("Web Serial недоступен в этом окне.");
   this.port=await navigator.serial.requestPort();await this.port.open({baudRate:115200});
@@ -1175,8 +1175,7 @@ const ROBOTS=[
  {id:"ev3",name:"LEGO EV3",kit:"ev3",lives:[["ev3","USB"],["ev3bt","Bluetooth"]],code:"ev3"},
  {id:"pu",name:"LEGO Technic Hub / City Hub / BOOST",lives:[["lwp3","Bluetooth"]]},
  {id:"spike",name:"LEGO SPIKE / Inventor (Pybricks)",code:"spike"},
- {id:"serial",name:"Свой робот (USB)",lives:[["serial","USB"]]},
- {id:"robocord",name:"RoboCord",off:true}];
+ {id:"robocord",name:"RoboCord",lives:[["serial","USB"]],note:"Робот РобоКорд на контроллере с USB (протокол РобоКорд, 115200)."}];
 function openConn(){
  if(document.getElementById("hwModal"))return;
  const close=()=>{const m=document.getElementById("hwModal");if(m)m.remove();};
@@ -2416,6 +2415,12 @@ async function profileShow(){const root=$("#profileRoot");if(!root)return;root.t
  root.append(el("div",{class:"pcard"},el("div",{},el("h2",{},fio(u)),el("p",{class:"hint"},"Логин: "+u.login+" · "+(ROLE[u.role]||u.role))),
   el("div",{class:"bar"},isTeacher()?el("a",{class:"btn pri",href:"#cab"},isAdmin()?"Открыть админ-панель":"Открыть кабинет учителя"):null,
    el("button",{class:"btn ghost",type:"button",onclick:async()=>{try{await api("logout",{body:{}});}catch(e){}accSet(null,null);profileShow();}},"Выйти"))));
+ {const pf=el("form",{class:"authf wide"},el("h3",{},"Сменить пароль"),field("Текущий пароль",{name:"old",type:"password",autocomplete:"current-password",required:true}),
+   field("Новый пароль",{name:"password",type:"password",autocomplete:"new-password",required:true}),field("Новый пароль ещё раз",{name:"password2",type:"password",autocomplete:"new-password",required:true}),
+   el("button",{class:"btn sm",type:"submit"},"Сменить пароль")),pm=note("");pf.append(pm);
+  pf.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(pf));if(d.password!==d.password2){pm.textContent="Новые пароли не совпадают.";pm.className="msg bad";return;}
+   try{await api("password",{body:d});pm.textContent="Пароль изменён.";pm.className="msg ok";pf.reset();}catch(err){pm.textContent=err.message;pm.className="msg bad";}};
+  root.append(el("details",{class:"cpphelp"},el("summary",{},"Сменить пароль"),pf));}
  const sols=el("div",{},note("Загрузка…")),maps=el("div",{},note("Загрузка…"));
  root.append(el("h2",{class:"mh"},"Сохранённые решения"),sols,el("h2",{class:"mh"},"Мои карты на сервере"),maps);
  try{const list=await api("solutions");sols.textContent="";
@@ -2482,13 +2487,13 @@ async function cabShow(){const root=$("#cab");if(!root)return;root.textContent="
  if(!ACC.user){const g=el("div",{class:"authgrid"});root.append(g);loginForm(g,"student",cabShow);loginForm(g,"teacher",cabShow);
   root.append(el("p",{class:"hint"},"Регистрации на сайте нет. Логин и пароль ученику выдаёт учитель в своём кабинете, учителю — администратор платформы."));return;}
  if(!isTeacher()){location.hash="#profile";return;}
- const tabs=isAdmin()?[["stats","Статистика"],["teachers","Учителя и школы"],["students","Ученики"],["classes","Мои классы"],["tasks","Задачи"],["courses","Курсы"],["maps","Все карты"],["site","Сайт: подвал"]]:[["classes","Мои классы"],["tasks","Мои задачи"],["courses","Курсы"]];
+ const tabs=isAdmin()?[["stats","Статистика"],["admins","Администраторы"],["teachers","Учителя и школы"],["students","Ученики"],["classes","Мои классы"],["tasks","Задачи"],["courses","Курсы"],["maps","Все карты"],["site","Сайт: подвал"]]:[["classes","Мои классы"],["tasks","Мои задачи"],["courses","Курсы"]];
  if(!tabs.find(t=>t[0]===CAB.tab))CAB.tab=tabs[0][0];
  root.append(el("div",{class:"pcard"},el("div",{},el("h2",{},(isAdmin()?"Админ-панель · ":"Кабинет учителя · ")+fio(ACC.user)),el("p",{class:"hint"},"Логин: "+ACC.user.login)),
   el("button",{class:"btn ghost",type:"button",onclick:async()=>{try{await api("logout",{body:{}});}catch(e){}accSet(null,null);cabShow();}},"Выйти")),
   el("div",{class:"seg wrapseg"},...tabs.map(([k,n])=>el("button",{type:"button","aria-pressed":String(CAB.tab===k),onclick:()=>{CAB.tab=k;cabShow();}},n))));
  const box=el("div",{class:"cabbox"});root.append(box);
- try{await ({stats:cabStats,teachers:cabTeachers,students:cabStudents,classes:cabClasses,tasks:cabTasks,courses:cabCourses,maps:cabMaps,site:cabSite})[CAB.tab](box);}
+ try{await ({stats:cabStats,admins:cabAdmins,teachers:cabTeachers,students:cabStudents,classes:cabClasses,tasks:cabTasks,courses:cabCourses,maps:cabMaps,site:cabSite})[CAB.tab](box);}
  catch(e){box.append(note(e.message,"bad"));}}
 async function cabStats(box){const s=await api("admin/stats");
  const card=(n,l,k)=>el("div",{class:"stat"+(k?" "+k:"")},el("b",{},String(n)),el("span",{},l));
@@ -2496,6 +2501,21 @@ async function cabStats(box){const s=await api("admin/stats");
   card(s.orgs,"образовательных организаций"),card(s.classes,"классов"),card(s.solutions,"сохранённых решений"),card(s.tasks||0,"задач от учителей"),card(s.maps,"карт ("+s.mapsPublic+" в общем доступе)"),card(s.onlineAll,"всего на сайте и в приложении сейчас")),
   el("p",{class:"hint"},"«Онлайн» — кто был на сайте или в приложении за последние 5 минут."),
   el("button",{class:"btn sm",type:"button",onclick:()=>cabShow()},"Обновить"));}
+async function cabAdmins(box){const list=await api("admin/admins");const res=el("div");
+ const f=el("form",{class:"authf wide"},el("h3",{},"Добавить администратора"),
+  field("Фамилия",{name:"last_name"}),field("Имя",{name:"first_name"}),field("Отчество",{name:"middle_name"}),
+  field("Логин (можно не заполнять — создастся сам)",{name:"login",placeholder:"admin.ivanov"}),
+  el("button",{class:"btn pri",type:"submit"},"Добавить и создать пароль"),res,
+  el("p",{class:"fine"},"Администратор видит всю статистику, все карты (в том числе закрытые), управляет учителями, школами, курсами, подвалом сайта и другими администраторами."));
+ f.onsubmit=async e=>{e.preventDefault();const d=Object.fromEntries(new FormData(f));res.textContent="";
+  try{const r=await api("admin/admins",{body:d});res.append(credsBox([{name:[d.last_name,d.first_name,d.middle_name].filter(Boolean).join(" "),login:r.login,password:r.password}],"Администратор добавлен"));f.reset();}
+  catch(err){res.append(note(err.message,"bad"));}};
+ box.append(f,el("h3",{class:"mh"},"Администраторы ("+list.length+")"),
+  el("table",{class:"tbl"},el("thead",{},el("tr",{},...["ФИО","Логин","Был в сети",""].map(h=>el("th",{},h)))),
+   el("tbody",{},...list.map(a=>{const out=el("td");return el("tr",{},el("td",{},fio(a)+(a.me?" (вы)":"")),el("td",{},el("code",{},a.login)),el("td",{},when(a.last_seen)),
+    a.me?el("td",{},el("a",{class:"btn sm ghost",href:"#profile"},"Сменить свой пароль")):el("td",{},
+     el("button",{class:"btn sm ghost",type:"button",onclick:async()=>{if(!confirm("Выдать новый пароль администратору "+a.login+"? Старый перестанет работать."))return;const r=await api("admin/reset",{body:{user_id:a.id}});out.textContent="";out.append(credsBox([{name:fio(a),login:r.login,password:r.password}],"Новый пароль"));}},"Новый пароль"),
+     el("button",{class:"btn sm ghost",type:"button",onclick:async()=>{if(!confirm("Удалить администратора "+a.login+"?"))return;try{await api("admin/admins/"+a.id,{method:"DELETE"});cabShow();}catch(e){alert(e.message);}}},"Удалить"),out));}))));}
 async function cabTeachers(box){const [orgs,ts]=await Promise.all([api("admin/orgs"),api("admin/teachers")]);
  const res=el("div");
  const f=el("form",{class:"authf wide"},el("h3",{},"Добавить учителя"),
