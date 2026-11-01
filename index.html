@@ -2954,21 +2954,25 @@ async function cabSite(box){const s=await api("settings");
  f.onsubmit=async e=>{e.preventDefault();await api("settings",{method:"PUT",body:Object.fromEntries(new FormData(f))});msg.textContent="Сохранено.";msg.className="msg ok";footerShow();};
  box.append(f);}
 async function cabAI(box){
- const s=await api("ai/config"),msg=note("");
+ const [s,u]=await Promise.all([api("ai/config"),api("ai/usage").catch(e=>({supported:false,error:e.message}))]),msg=note("");
  const keyField=field(s.has_key?"Новый API-ключ (оставьте пустым, чтобы сохранить текущий)":"API-ключ",{name:"api_key",type:"password",autocomplete:"off",placeholder:s.has_key?"Ключ сохранён на сервере":"sk-…"});
  const f=el("form",{class:"authf wide"},el("h3",{},"OpenAI-совместимый API"),
-  field("Base URL",{name:"base_url",type:"url",required:true,value:s.base_url||"https://api.apihost.one/v1",placeholder:"https://api.apihost.one/v1"}),
+  field("API-адрес (Base URL)",{name:"base_url",type:"url",required:true,value:s.base_url||"https://api.apihost.one/v1",placeholder:"https://api.apihost.one/v1"}),
   field("Модель",{name:"model",required:true,value:s.model||"claude-fable-5",placeholder:"claude-fable-5"}),keyField,
-  el("button",{class:"btn pri",type:"submit"},"Сохранить настройки ИИ"),msg,
-  el("p",{class:"hint"},"Настройки применяются сразу для сайта и ПК-приложений. Ключ хранится на сервере в зашифрованном виде и никогда не показывается в браузере. Запросы могут расходовать баланс выбранного API."));
+  el("button",{class:"btn pri",type:"submit"},"Сохранить API-адрес и настройки"),msg,
+  el("p",{class:"hint"},"Чтобы заменить API, впишите новый адрес, например https://api.apihost.one/v1, укажите модель и сохраните. Запросы отправляются на /chat/completions, баланс запрашивается через /me. Настройки применяются сразу для сайта и ПК-приложений. Ключ никогда не показывается в браузере."));
  f.onsubmit=async e=>{e.preventDefault();msg.textContent="Сохранение…";msg.className="msg";
-  try{const d=Object.fromEntries(new FormData(f));await api("ai/config",{method:"PUT",body:d});keyField.querySelector("input").value="";msg.textContent="Настройки ИИ сохранены и уже действуют.";msg.className="msg ok";if(typeof aiReset==="function")aiReset();}
+  try{const d=Object.fromEntries(new FormData(f));await api("ai/config",{method:"PUT",body:d});keyField.querySelector("input").value="";msg.textContent="API-адрес и настройки ИИ сохранены и уже действуют.";msg.className="msg ok";if(typeof aiReset==="function")aiReset();}
   catch(err){msg.textContent=err.message;msg.className="msg bad";}};
- box.append(el("div",{class:"ai-teacher"},el("b",{},s.available?"ИИ API настроен":"ИИ API требует настройки"),el("span",{class:"hint"},s.has_key?"Ключ сохранён":"Ключ не сохранён")),f);
+ const number=n=>Number.isFinite(n)?new Intl.NumberFormat("ru-RU").format(n):"—",stat=(n,l,k)=>el("div",{class:"stat"+(k?" "+k:"")},el("b",{},n),el("span",{},l));
+ const tokens=el("section",{},el("div",{class:"bar"},el("h3",{},"Использование токенов"),el("button",{class:"btn sm ghost",type:"button",onclick:cabShow},"Обновить баланс")));
+ if(u.supported)tokens.append(el("div",{class:"stats"},stat(number(u.used),"израсходовано токенов"),stat(number(u.remaining),"осталось токенов","live"),stat(number(u.limit),"общий лимит")));else tokens.append(note(u.error||"Выбранный API не предоставляет баланс.","bad"));
+ tokens.append(el("p",{class:"hint"},"Расход и остаток возвращает выбранный API-сервис."));
+ box.append(el("div",{class:"ai-teacher"},el("b",{},s.available?"ИИ API настроен":"ИИ API требует настройки"),el("span",{class:"hint"},s.has_key?"Ключ сохранён":"Ключ не сохранён")),tokens,f);
 }
 // ===== ограниченный ИИ-помощник: фиксированные действия без свободного чата =====
-const AI={status:null,loading:null,review:null,help:null,busy:false,panel:null};
-function aiReset(){AI.status=null;AI.loading=null;AI.review=null;AI.help=null;AI.busy=false;AI.error=null;AI.panel=null;}
+const AI={status:null,loading:null,review:null,help:null,solution:null,solutions:null,busy:false,panel:null};
+function aiReset(){AI.status=null;AI.loading=null;AI.review=null;AI.help=null;AI.solution=null;AI.solutions=null;AI.busy=false;AI.error=null;AI.panel=null;}
 async function aiStatus(force){
  if(AI.status&&!force)return AI.status;
  if(AI.loading)return AI.loading;
@@ -3007,14 +3011,15 @@ function aiTaskPanel(bar){
  function render(){
   panel.textContent="";
   const status=AI.status||{available:false};
-  panel.append(el("div",{class:"ai-head"},el("div",{},el("b",{},"ИИ-помощник"),el("small",{},"Только проверка и подсказка по аналогии. Свободного чата нет.")),el("span",{class:"ai-badge"},"Ограниченный режим")));
+  panel.append(el("div",{class:"ai-head"},el("div",{},el("b",{},"ИИ-помощник"),el("small",{},"Проверка, подсказка и помощь с решением. Свободного чата нет.")),el("span",{class:"ai-badge"},"Ограниченный режим")));
   const check=el("button",{class:"btn sm pri",type:"button",disabled:AI.busy||!status.available,onclick:()=>runCheck("auto")},"ИИ: проверить решение");
   const robot=el("button",{class:"btn sm",type:"button",disabled:AI.busy||!status.available,onclick:()=>runCheck("robot")},"Проверить для робота");
   const help=el("button",{class:"btn sm",type:"button",disabled:AI.busy||!status.available,onclick:runHelp},"Не справляюсь");
+  const others=el("button",{class:"btn sm",type:"button",disabled:AI.busy||!status.available,onclick:runSolutions},"Другие решения");
   const submit=el("button",{class:"btn sm ghost",type:"button",disabled:AI.busy||!status.available||!AI.review||AI.review.submitted,onclick:submitReview},AI.review&&AI.review.submitted?"Баллы у учителя":"Отправить баллы учителю");
-  panel.append(el("div",{class:"bar ai-actions"},check,robot,help,submit));
+  panel.append(el("div",{class:"bar ai-actions"},check,robot,help,others,submit));
   if(!status.available){panel.append(el("p",{class:"ai-note"},status.error||"ИИ временно недоступен. Обычное решение и проверка в 3D продолжают работать."));return;}
-  if(AI.busy)panel.append(el("p",{class:"ai-note"},"ИИ проверяет данные…"));
+  if(AI.busy)panel.append(el("p",{class:"ai-note"},"ИИ обрабатывает запрос…"));
   if(AI.error)panel.append(el("p",{class:"msg bad"},AI.error));
   if(AI.review){
    const r=AI.review;panel.append(el("div",{class:"ai-grade"},el("b",{},r.points+" / "+r.max_points+" баллов"),el("span",{},"Оценка "+r.grade+" · "+(r.source==="code"?"проверка кода":"проверка результата"))));
@@ -3022,16 +3027,28 @@ function aiTaskPanel(bar){
    const list=el("ul",{class:"ai-criteria"});for(const c of r.criteria||[])list.append(el("li",{},el("b",{},c.name+" — "+c.points+" / "+c.max_points+" б."),c.comment?el("span",{},c.comment):null));panel.append(list);
    if(r.source==="code"&&r.points>0)panel.append(el("p",{class:"ai-note"},"Эта проверка разрешает запуск текущей неизменённой программы на подключённом роботе."));
   }
-  if(AI.help){const h=AI.help;panel.append(el("div",{class:"ai-analogy"},el("b",{},"Сначала попробуйте похожую задачу"),h.hint?el("p",{},"Подсказка: "+h.hint):null,el("h3",{},h.analogy.title||"Задача по аналогии"),el("p",{},h.analogy.task)));}
+  if(AI.help){const h=AI.help;panel.append(el("div",{class:"ai-analogy"},el("b",{},"Сначала попробуйте похожую задачу"),h.hint?el("p",{},"Подсказка: "+h.hint):null,el("h3",{},h.analogy.title||"Задача по аналогии"),el("p",{},h.analogy.task),el("button",{class:"btn sm ghost",type:"button",disabled:AI.busy,onclick:runSolve},"Нет, не могу")));}
+  if(AI.solution){const s=AI.solution;panel.append(el("div",{class:"ai-analogy ai-solution"},el("b",{},"Решение · 0 баллов за эту задачу"),s.explanation?el("p",{},s.explanation):null,el("pre",{},el("code",{},s.solution)),el("p",{class:"ai-note"},"Получить баллы можно, решив аналогичное задание.")));}
+  if(AI.solutions){const list=el("div",{class:"ai-analogy"},el("b",{},"Другие решения · 0 баллов за эту задачу"));if(!AI.solutions.length)list.append(el("p",{},"Пока нет опубликованных решений этой задачи."));AI.solutions.forEach((s,i)=>list.append(el("div",{class:"ai-solution"},el("b",{},"Вариант "+(i+1)+" · оценка "+s.grade),s.summary?el("p",{},s.summary):null,el("pre",{},el("code",{},s.program)))));panel.append(list);if(AI.solutions.length)panel.append(el("p",{class:"ai-note"},"Получить баллы можно, решив аналогичное задание."));}
  }
  async function runCheck(source){
-  if(AI.busy)return;AI.busy=true;AI.error=null;AI.help=null;render();
+  if(AI.busy)return;AI.busy=true;AI.error=null;AI.help=null;AI.solution=null;AI.solutions=null;render();
   try{const payload=aiPayload(source),program=payload.program,r=await api("ai/check",{body:payload});AI.review=Object.assign(r,{taskId:S.task.id,program});}
   catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
  }
  async function runHelp(){
-  if(AI.busy)return;AI.busy=true;AI.error=null;render();
+  if(AI.busy)return;AI.busy=true;AI.error=null;AI.solution=null;AI.solutions=null;render();
   try{AI.help=await api("ai/help",{body:aiPayload("code")});}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
+ }
+ async function runSolve(){
+  if(AI.busy||!confirm("Вы хотите увидеть решение? За текущую задачу будет начислено 0 баллов. Получить баллы можно, решив аналогичное задание."))return;
+  AI.busy=true;AI.error=null;render();
+  try{AI.solution=await api("ai/solve",{body:aiPayload("code")});AI.review=null;}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
+ }
+ async function runSolutions(){
+  if(AI.busy||!confirm("Посмотреть решения других учеников? За текущую задачу будет начислено 0 баллов. Получить баллы можно, решив аналогичное задание."))return;
+  AI.busy=true;AI.error=null;AI.solution=null;render();
+  try{const r=await api("ai/solutions",{body:aiPayload("code")});AI.solutions=r.items||[];AI.review=null;}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
  }
  async function submitReview(){
   if(!AI.review||AI.busy)return;AI.busy=true;AI.error=null;render();
