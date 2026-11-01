@@ -2991,7 +2991,7 @@ function aiProgram(){
 }
 function aiPayload(source){
  const t=S.task,r=S.lastTaskResult&&S.lastTaskResult.taskId===t.id?S.lastTaskResult:{ok:false,msg:"",pts:0,max_pts:t.pts,items:[]};
- return {task:{id:String(t.id),title:t.t,desc:t.d,cat:t.cat,level:t.lv,points:t.pts},mode:S.mode,program:aiProgram(),source:source==="robot"?"robot":(r.ok||r.msg||(r.items&&r.items.length)?"simulator":"code"),result:{ok:!!r.ok,msg:r.msg||"",pts:r.pts||0,max_pts:t.pts,blocks:r.blocks||0,hits:r.hits||0,time:r.time||0,items:r.items||[]}};
+ return {task:{id:String(t.id),title:t.t,desc:t.d,cat:t.cat,level:t.lv,points:t.pts,need:t.need||[],field:cl(t.field)},mode:S.mode,program:aiProgram(),source:source==="robot"?"robot":(r.ok||r.msg||(r.items&&r.items.length)?"simulator":"code"),result:{ok:!!r.ok,msg:r.msg||"",pts:r.pts||0,max_pts:t.pts,blocks:r.blocks||0,hits:r.hits||0,time:r.time||0,items:r.items||[]}};
 }
 function aiReviewCurrent(){
  const r=AI.review,t=S.task;
