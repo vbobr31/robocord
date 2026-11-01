@@ -1552,9 +1552,28 @@ const TASKS=[
 ];
 TASKS.forEach((t,i)=>{t.id=i+1;t.pts=TBASE[t.lv];t.field=Object.assign({},t.field,{name:t.t,desc:t.d});
  for(const k of (t.need||[]))if(!t.field.need)t.field.need=[];t.field.need=t.need;});
-// ---- прогресс (localStorage) ----
-const tpGet=()=>lsGet("rc-tasks",{});
-const tpSet=v=>{lsSet("rc-tasks",v);if(typeof draftSoon==="function")draftSoon();};
+// ---- прогресс: у каждого аккаунта своё локальное хранилище; сервер объединяет устройства ----
+const tpKey=()=>ACC.user&&ACC.user.id?"rc-tasks:"+ACC.user.id:"rc-tasks";
+function tpInit(){if(!ACC.user||!ACC.user.id)return;const key=tpKey();if(lsGet(key,null))return;
+ // Одноразовый перенос результата прежней версии. После переноса гостевое хранилище не смешивает аккаунты.
+ const legacy=lsGet("rc-tasks",null);if(legacy){lsSet(key,legacy);lsSet("rc-tasks",{});}}
+function tpEntry(v){v=v&&typeof v==="object"&&!Array.isArray(v)?v:{};
+ const num=(x,max)=>Number.isFinite(+x)?Math.max(0,Math.min(max,+x)):0;
+ const e={att:Math.floor(num(v.att,1000000)),best:Math.floor(num(v.best,1000000)),solved:!!v.solved};
+ if(v.t!=null&&v.t!==""&&Number.isFinite(+v.t))e.t=Math.max(0,Math.min(1000000,+v.t));
+ if(v.blocks!=null&&v.blocks!==""&&Number.isFinite(+v.blocks))e.blocks=Math.floor(Math.max(0,Math.min(1000000,+v.blocks)));
+ if(typeof v.date==="string"&&/^\d{4}-\d{2}-\d{2}/.test(v.date))e.date=v.date.slice(0,10);
+ return e;}
+function tpMerge(a,b){a=a&&typeof a==="object"&&!Array.isArray(a)?a:{};b=b&&typeof b==="object"&&!Array.isArray(b)?b:{};
+ const out=Object.create(null),keys=new Set([...Object.keys(a),...Object.keys(b)]);
+ for(const k of keys){if(!/^\d{1,12}$/.test(k))continue;const x=tpEntry(a[k]),y=tpEntry(b[k]);
+  const cmp=x.best-y.best||(x.solved?1:0)-(y.solved?1:0)||String(x.date||"").localeCompare(String(y.date||""));
+  const w=cmp>=0?x:y,o=w===x?y:x,r={att:Math.max(x.att,y.att),best:Math.max(x.best,y.best),solved:!!(x.solved||y.solved)};
+  for(const f of ["t","blocks","date"])if(w[f]!=null)r[f]=w[f];else if(o[f]!=null)r[f]=o[f];
+  if(r.att||r.best||r.solved||r.t!=null||r.blocks!=null||r.date)out[k]=r;}
+ return out;}
+const tpGet=()=>lsGet(tpKey(),{});
+const tpSet=v=>{lsSet(tpKey(),v);if(typeof draftSoon==="function")draftSoon();};
 function tScore(t,s,blocks){ // возвращает {ok,msg,items,pts}
  if(s.fail)return {ok:false,msg:s.fail,pts:0};
  let err=t.chk(s);
@@ -1677,7 +1696,7 @@ function tasksMine(root,p){
  const tb=el("table",{class:"ts-tab"},el("tr",{},...["№","Задача","Раздел","Статус","Баллы","Время, с","Блоков","Попыток","Дата"].map(h=>el("th",{},h))));
  for(const t of rows){const e=p[t.id];tb.append(el("tr",{},el("td",{},String(t.id)),el("td",{},t.t),el("td",{},TCAT.find(c=>c.id===t.cat).n),el("td",{class:e.solved?"y":"n"},e.solved?"решена":"не решена"),el("td",{},e.solved?e.best+" / "+t.pts:"0 / "+t.pts),el("td",{},e.t==null?"—":String(e.t)),el("td",{},e.blocks==null?"—":String(e.blocks)),el("td",{},String(e.att)),el("td",{},e.date||"—")));}
  root.append(el("div",{style:"overflow:auto;margin-top:12px"},tb),
-  el("div",{class:"bar",style:"margin-top:12px"},el("button",{class:"btn sm ghost",type:"button",onclick:()=>{if(confirm("Удалить все результаты?")){tpSet({});tasksShow();}}},"Сбросить результаты")));
+  el("div",{class:"bar",style:"margin-top:12px"},el("button",{class:"btn sm ghost",type:"button",onclick:()=>{if(confirm("Удалить все результаты на всех устройствах этого аккаунта?")){if(typeof draftResetProgress!=="undefined")draftResetProgress=true;tpSet({});tasksShow();}}},"Сбросить результаты")));
 }
 // ===== утилиты =====
 const $=(s,r=document)=>r.querySelector(s);
@@ -2681,7 +2700,7 @@ async function api(path,opt){opt=opt||{};
  const d=await r.json().catch(()=>({}));
  if(r.status===401&&ACC.token&&path!=="login"){accSet(null,null);}
  if(!r.ok)throw new Error(d.error||("ошибка "+r.status));return d;}
-function accSet(user,token){ACC.user=user;ACC.token=token;lsSet("rc-user",user);lsSet("rc-token",token);if(typeof aiReset==="function")aiReset();if(typeof utLoaded!=="undefined")utLoaded=false;accNav();}
+function accSet(user,token){ACC.user=user;ACC.token=token;lsSet("rc-user",user);lsSet("rc-token",token);if(typeof tpInit==="function")tpInit();if(typeof aiReset==="function")aiReset();if(typeof utLoaded!=="undefined")utLoaded=false;accNav();}
 const isAdmin=()=>ACC.user&&ACC.user.role==="admin",isTeacher=()=>ACC.user&&(ACC.user.role==="teacher"||ACC.user.role==="admin");
 const ROLE={student:"ученик",teacher:"учитель",admin:"владелец платформы"};
 function accNav(){const a=$("#navAcc");if(a)a.textContent=ACC.user?ACC.user.login:(BUILD==="site"?"Войти":"Профиль");
@@ -2700,23 +2719,28 @@ function credsBox(list,title){const txt=list.map(x=>(x.name?x.name+"\t":"")+x.lo
   el("button",{class:"btn sm",type:"button",onclick:()=>download("robocord_logins.txt",txt)},"Скачать список"));}
 
 // ---------- общий черновик: текущая программа и прогресс задач — одинаковые на сайте и в приложении ----------
-let draftT=null,draftBusy=false;
-function draftPack(){return {mode:S.mode,blocks:lsGet("rs-ws2",null),cpp:lsGet("rs-cpp",null),progress:lsGet("rc-tasks",{}),ts:Date.now()};}
-function draftSoon(){if(!ACC.token||draftBusy)return;lsSet("rc-draft-ts",Date.now());clearTimeout(draftT);draftT=setTimeout(()=>{api("draft",{method:"PUT",body:{data:draftPack(),ts:Date.now()}}).catch(()=>{});},2500);}
-// при входе и при запуске: если в аккаунте программа новее, чем на этом устройстве, — подставить её
-async function draftPull(){if(!ACC.token)return;let d;try{d=await api("draft");}catch(e){return;}
+let draftT=null,draftBusy=false,draftResetProgress=false;
+function draftPack(){const d={mode:S.mode,blocks:lsGet("rs-ws2",null),cpp:lsGet("rs-cpp",null),progress:tpGet(),ts:Date.now()};if(draftResetProgress)d.progress_reset=true;return d;}
+function draftSoon(){if(!ACC.token||draftBusy)return;lsSet("rc-draft-ts",Date.now());clearTimeout(draftT);draftT=setTimeout(async()=>{try{await api("draft",{method:"PUT",body:{data:draftPack(),ts:Date.now()}});draftResetProgress=false;}catch(e){}},2500);}
+// Прогресс объединяется при каждой загрузке. Timestamp относится только к редактируемой программе.
+async function draftPull(){if(!ACC.token)return;const uid=ACC.user&&ACC.user.id;let d;try{d=await api("draft");}catch(e){return;}
+ if(!ACC.token||(ACC.user&&ACC.user.id)!==uid)return;
  const local=lsGet("rc-draft-ts",0);
  if(!d||!d.data){draftSoon();return;}
- if((d.ts||0)<=local)return;
- draftBusy=true;try{const x=d.data;
-  if(x.progress){const p=Object.assign({},lsGet("rc-tasks",{}));for(const k in x.progress){const a=p[k],b=x.progress[k];p[k]=!a?b:{att:Math.max(a.att||0,b.att||0),best:Math.max(a.best||0,b.best||0),solved:!!(a.solved||b.solved),t:a.t||b.t,blocks:a.blocks||b.blocks,date:a.date||b.date};}lsSet("rc-tasks",p);}
-  if(x.blocks)lsSet("rs-ws2",x.blocks);if(x.cpp!=null)lsSet("rs-cpp",x.cpp);if(x.mode)lsSet("rs-mode",x.mode);
-  if(typeof S!=="undefined"&&S.ws&&x.blocks){try{loadWs(x.blocks);}catch(e){}}
-  if(x.cpp!=null&&typeof cppSet==="function"&&$("#cppEd"))$("#cppEd").value=x.cpp,cppGutter();
-  if(x.mode&&typeof setMode==="function"&&S.edOk)setMode(x.mode);else if(x.mode)S.mode=x.mode;
-  lsSet("rc-draft-ts",d.ts);
-  if(typeof setMsg==="function"&&$("#simMsg"))setMsg("Загружена программа из вашего аккаунта (сохранена "+when(d.updated_at)+").","ok");
- }finally{draftBusy=false;}}
+ const x=d.data,before=tpGet(),merged=tpMerge(before,x.progress),progressChanged=JSON.stringify(before)!==JSON.stringify(merged),needPush=JSON.stringify(x.progress||{})!==JSON.stringify(merged);
+ draftBusy=true;try{
+  if(progressChanged)lsSet(tpKey(),merged);
+  if((d.ts||0)>local){
+   if(x.blocks)lsSet("rs-ws2",x.blocks);if(x.cpp!=null)lsSet("rs-cpp",x.cpp);if(x.mode)lsSet("rs-mode",x.mode);
+   if(typeof S!=="undefined"&&S.ws&&x.blocks){try{loadWs(x.blocks);}catch(e){}}
+   if(x.cpp!=null&&typeof cppSet==="function"&&$("#cppEd"))$("#cppEd").value=x.cpp,cppGutter();
+   if(x.mode&&typeof setMode==="function"&&S.edOk)setMode(x.mode);else if(x.mode)S.mode=x.mode;
+   lsSet("rc-draft-ts",d.ts);
+   if(typeof setMsg==="function"&&$("#simMsg"))setMsg("Загружена программа из вашего аккаунта (сохранена "+when(d.updated_at)+").","ok");
+  }
+ }finally{draftBusy=false;}
+ if(progressChanged){if(location.hash==="#tasks"&&typeof tasksShow==="function")tasksShow();if(typeof S!=="undefined"&&S.task){if(typeof taskBar==="function")taskBar();const h=$("#hTry");if(h)h.textContent="попыток "+((merged[S.task.id]||{}).att||0);}}
+ if(needPush||(d.ts||0)<local)draftSoon();}
 // ---------- вход ----------
 function loginForm(root,kind,done){
  const f=el("form",{class:"authf"}),msg=note("");
@@ -3121,6 +3145,6 @@ async function aiLeadersInto(root){
 }
 if(ACC.user)setTimeout(()=>aiStatus().then(()=>{if(location.hash==="#tasks")tasksShow();}),0);
 // ===== запуск страницы =====
-accNav();if(BUILD==="site")footerShow();joyInit();route();draftPull();
+tpInit();accNav();if(BUILD==="site")footerShow();joyInit();route();draftPull();
 </script>
 </body></html>
