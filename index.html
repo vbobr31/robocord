@@ -2993,6 +2993,34 @@ function aiPayload(source){
  const t=S.task,r=S.lastTaskResult&&S.lastTaskResult.taskId===t.id?S.lastTaskResult:{ok:false,msg:"",pts:0,max_pts:t.pts,items:[]};
  return {task:{id:String(t.id),title:t.t,desc:t.d,cat:t.cat,level:t.lv,points:t.pts,need:t.need||[],field:cl(t.field)},mode:S.mode,program:aiProgram(),source:source==="robot"?"robot":(r.ok||r.msg||(r.items&&r.items.length)?"simulator":"code"),result:{ok:!!r.ok,msg:r.msg||"",pts:r.pts||0,max_pts:t.pts,blocks:r.blocks||0,hits:r.hits||0,time:r.time||0,items:r.items||[]}};
 }
+function aiSolutionPayload(){
+ const p=aiPayload("code");p.mode="blocks";if(S.mode!=="blocks")p.program="";return p;
+}
+function aiBlocksFromText(source){
+ const commands=[],number=s=>Number(String(s).replace(",","."));
+ const lines=String(source||"").replace(/```(?:\w+)?/g,"").split(/\n|;/);
+ for(const raw of lines){
+  const s=raw.trim().replace(/^(?:\d+[.)]|[-*•])\s*/,"").trim();let m;
+  if(!s||/^(?:#include|using\s+namespace|int\s+main|return\s+0|[{}])/i.test(s))continue;
+  if((m=s.match(/^forward\((-?\d+(?:\.\d+)?)\)$/i))||(m=s.match(/^ехать\s+впер[её]д(?:\s+на)?\s+(-?\d+(?:[.,]\d+)?)\s*см/i)))commands.push(J.drive("F",number(m[1])));
+  else if((m=s.match(/^backward\((-?\d+(?:\.\d+)?)\)$/i))||(m=s.match(/^ехать\s+назад(?:\s+на)?\s+(-?\d+(?:[.,]\d+)?)\s*см/i)))commands.push(J.drive("B",number(m[1])));
+  else if((m=s.match(/^turnRight\((-?\d+(?:\.\d+)?)\)$/i))||(m=s.match(/^повернуть\s+направо(?:\s+на)?\s+(-?\d+(?:[.,]\d+)?)/i)))commands.push(J.turn("R",number(m[1])));
+  else if((m=s.match(/^turnLeft\((-?\d+(?:\.\d+)?)\)$/i))||(m=s.match(/^повернуть\s+налево(?:\s+на)?\s+(-?\d+(?:[.,]\d+)?)/i)))commands.push(J.turn("L",number(m[1])));
+  else if((m=s.match(/^setSpeed\((\d+(?:\.\d+)?)\)$/i))||(m=s.match(/^скорость\s+(?:движения\s+)?(\d+(?:[.,]\d+)?)/i)))commands.push(J.speed(number(m[1])));
+  else if((m=s.match(/^wait\((\d+(?:\.\d+)?)\)$/i))||(m=s.match(/^ждать\s+(\d+(?:[.,]\d+)?)\s*с/i)))commands.push(J.wait(number(m[1])));
+  else if(/^stop\(\)$/i.test(s)||/^остановить\s+моторы/i.test(s))commands.push(J.stop());
+  else if(/^clawOpen\(\)$/i.test(s)||/^открыть\s+клешн/i.test(s))commands.push(J.claw("OPEN"));
+  else if(/^clawClose\(\)$/i.test(s)||/^закрыть\s+клешн/i.test(s))commands.push(J.claw("CLOSE"));
+  else if((m=s.match(/^tank\((-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)\)$/i)))commands.push(J.tank(number(m[1]),number(m[2])));
+  else throw new Error("ИИ вернул команду, которую нельзя собрать блоками: "+s.slice(0,120));
+ }
+ if(!commands.length)throw new Error("ИИ не вернул команды для сборки блоков.");
+ return prog(commands);
+}
+function aiAssembleSolution(source){
+ const workspace=aiBlocksFromText(source);if(S.running)stopRun();setMode("blocks");loadWs(workspace);saveWs();AI.review=null;
+ setMsg("Готовое решение собрано в редакторе блоков. За эту задачу — 0 баллов; можно запустить и изменить программу.");
+}
 function aiReviewCurrent(){
  const r=AI.review,t=S.task;
  return !!(r&&t&&r.taskId===t.id&&r.program===aiProgram()&&r.points>0);
@@ -3033,8 +3061,11 @@ function aiTaskPanel(bar){
    if(r.source==="code"&&r.points>0)panel.append(el("p",{class:"ai-note"},"Эта проверка разрешает запуск текущей неизменённой программы на подключённом роботе."));
   }
   if(AI.help){const h=AI.help;panel.append(el("div",{class:"ai-analogy"},el("b",{},"Сначала попробуйте похожую задачу"),h.hint?el("p",{},"Подсказка: "+h.hint):null,el("h3",{},h.analogy.title||"Задача по аналогии"),el("p",{},h.analogy.task),el("button",{class:"btn sm ghost",type:"button",disabled:AI.busy,onclick:runSolve},"Нет, не могу")));}
-  if(AI.solution){const s=AI.solution;panel.append(el("div",{class:"ai-analogy ai-solution"},el("b",{},"Решение · 0 баллов за эту задачу"),s.explanation?el("p",{},s.explanation):null,el("pre",{},el("code",{},s.solution)),el("p",{class:"ai-note"},"Получить баллы можно, решив аналогичное задание.")));}
-  if(AI.solutions){const list=el("div",{class:"ai-analogy"},el("b",{},"Другие решения от ИИ · 0 баллов за эту задачу"));AI.solutions.forEach((s,i)=>list.append(el("div",{class:"ai-solution"},el("b",{},"Вариант "+(i+1)+" · создан ИИ"),s.summary?el("p",{},s.summary):null,el("pre",{},el("code",{},s.program)))));panel.append(list);if(AI.solutions.length)panel.append(el("p",{class:"ai-note"},"Получить баллы можно, решив аналогичное задание."));}
+  if(AI.solution){const s=AI.solution;panel.append(el("div",{class:"ai-analogy ai-solution"},el("b",{},"Решение · 0 баллов за эту задачу"),s.explanation?el("p",{},s.explanation):null,el("button",{class:"btn sm pri",type:"button",onclick:()=>assemble(s)},"Собрать решение в Blockly"),s.assembled?el("p",{class:"ai-note"},"Готовые блоки находятся в редакторе программы."):null,el("p",{class:"ai-note"},"Получить баллы можно, решив аналогичное задание.")));}
+  if(AI.solutions){const list=el("div",{class:"ai-analogy"},el("b",{},"Другие решения · 0 баллов за эту задачу"));AI.solutions.forEach((s,i)=>list.append(el("div",{class:"ai-solution"},el("b",{},"Вариант "+(i+1)),s.summary?el("p",{},s.summary):null,el("button",{class:"btn sm",type:"button",onclick:()=>assemble(s)},"Собрать вариант "+(i+1)+" в Blockly"),s.assembled?el("p",{class:"ai-note"},"Этот вариант собран в редакторе."):null)));panel.append(list);if(AI.solutions.length)panel.append(el("p",{class:"ai-note"},"Получить баллы можно, решив аналогичное задание."));}
+ }
+ function assemble(s){
+  try{aiAssembleSolution(s.solution||s.program);s.assembled=true;AI.error=null;}catch(e){AI.error=e.message;}render();
  }
  async function runCheck(source){
   if(AI.busy)return;AI.busy=true;AI.error=null;AI.help=null;AI.solution=null;AI.solutions=null;render();
@@ -3046,14 +3077,14 @@ function aiTaskPanel(bar){
   try{AI.help=await api("ai/help",{body:aiPayload("code")});}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
  }
  async function runSolve(){
-  if(AI.busy||!confirm("Вы хотите увидеть решение? За текущую задачу будет начислено 0 баллов. Получить баллы можно, решив аналогичное задание."))return;
+  if(AI.busy||!confirm("Собрать готовое решение из блоков? За текущую задачу будет начислено 0 баллов. Получить баллы можно, решив аналогичное задание."))return;
   AI.busy=true;AI.error=null;render();
-  try{AI.solution=await api("ai/solve",{body:aiPayload("code")});AI.review=null;}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
+  try{AI.solution=await api("ai/solve",{body:aiSolutionPayload()});aiAssembleSolution(AI.solution.solution);AI.solution.assembled=true;}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
  }
  async function runSolutions(){
-  if(AI.busy||!confirm("Показать три других решения, созданных ИИ? За текущую задачу будет начислено 0 баллов. Получить баллы можно, решив аналогичное задание."))return;
+  if(AI.busy||!confirm("Получить три других решения для сборки из блоков? За текущую задачу будет начислено 0 баллов. Получить баллы можно, решив аналогичное задание."))return;
   AI.busy=true;AI.error=null;AI.solution=null;render();
-  try{const r=await api("ai/solutions",{body:aiPayload("code")});AI.solutions=r.items||[];AI.review=null;}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
+  try{const r=await api("ai/solutions",{body:aiSolutionPayload()});AI.solutions=r.items||[];AI.review=null;}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
  }
  async function submitReview(){
   if(!AI.review||AI.busy)return;AI.busy=true;AI.error=null;render();
