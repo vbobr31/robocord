@@ -1563,15 +1563,16 @@ function tScore(t,s,blocks){ // возвращает {ok,msg,items,pts}
  const a=0.6,b=s.hits===0?0.2:0,c=blocks<=t.par?0.2:0;
  return {ok:true,pts:Math.round(t.pts*(a+b+c)),items:[["Задача решена верно",Math.round(t.pts*a),true],["Без касаний препятствий и стен",Math.round(t.pts*0.2),s.hits===0],["Не больше "+t.par+" блоков в программе ("+blocks+")",Math.round(t.pts*0.2),blocks<=t.par]]};}
 function taskVerdict(s){
- const t=S.task,blocks=Math.max(0,(S.nb||1)-1),r=tScore(t,s,blocks),p=tpGet(),e=p[t.id]||{att:0,best:0};
- S.lastTaskResult={taskId:t.id,ok:r.ok,msg:r.msg||"",pts:r.pts||0,max_pts:t.pts,items:r.items||[],blocks,hits:s.hits||0,time:s.t||0};
+ const t=S.task,blocks=Math.max(0,(S.nb||1)-1),r=tScore(t,s,blocks),p=tpGet(),e=p[t.id]||{att:0,best:0},zero=typeof aiZeroCurrent==="function"&&aiZeroCurrent();
+ if(zero){r.pts=0;r.zero=true;r.msg="Маршрут выполнен, но начислено 0 баллов: использовано готовое решение.";r.items=(r.items||[]).map(x=>[x[0],x[1],false]);}
+ S.lastTaskResult={taskId:t.id,ok:r.ok,msg:r.msg||"",pts:r.pts||0,max_pts:t.pts,items:r.items||[],blocks,hits:s.hits||0,time:s.t||0,zero_points:zero};
  if(typeof AI!=="undefined"){AI.review=null;AI.help=null;AI.error=null;}
  e.att=(e.att||0)+1;let gain=0;
- if(r.ok)S.lastOk={task:t.id,pts:r.pts};
- if(r.ok){const nb=r.pts>(e.best||0);gain=nb?r.pts-(e.best||0):0;if(nb){e.best=r.pts;e.t=+s.t.toFixed(1);e.blocks=blocks;}e.solved=true;e.date=new Date().toISOString().slice(0,10);}
+ if(r.ok&&!zero)S.lastOk={task:t.id,pts:r.pts};
+ if(r.ok&&!zero){const nb=r.pts>(e.best||0);gain=nb?r.pts-(e.best||0):0;if(nb){e.best=r.pts;e.t=+s.t.toFixed(1);e.blocks=blocks;}e.solved=true;e.date=new Date().toISOString().slice(0,10);}
  p[t.id]=e;tpSet(p);
  $("#hTry").textContent="попыток "+e.att;
- setMsg(r.ok?"Задача решена верно!":"Задача не решена.",r.ok?"ok":"bad");
+ setMsg(zero?r.msg:(r.ok?"Задача решена верно!":"Задача не решена."),zero?"bad":(r.ok?"ok":"bad"));
  taskBar(r,gain,e);
 }
 function openTask(id){
@@ -1585,8 +1586,8 @@ function loadTask(id){
  S.task=t;S.lastTaskResult=null;if(typeof AI!=="undefined"){AI.review=null;AI.help=null;AI.solution=null;AI.solutions=null;AI.error=null;}
  S.fid="free";S.field=JSON.parse(JSON.stringify(t.field));S.hist=[];for(const k of t.need)S.cfg[k]=true;lsSet("rs-cfg",S.cfg);saveField();
  renderField();renderRobot();renderSens();buildRobot();buildField3D();resetSim(true);
- loadWs(prog([]));saveWs();
- setMsg("Загружена карта задачи «"+t.field.name+"». Составьте программу и нажмите «Вывести в 3D».");$("#hTry").textContent="попыток "+((tpGet()[t.id]||{}).att||0);taskBar();}
+ loadWs(prog([]));saveWs();setMp("3d");
+ setMsg("Загружена карта задачи «"+t.field.name+"». Осмотрите поле, затем откройте «Программа», чтобы собрать блоки.");$("#hTry").textContent="попыток "+((tpGet()[t.id]||{}).att||0);taskBar();}
 function taskBar(res,gain,e){
  const bar=$("#taskBar");if(!bar)return;bar.textContent="";
  const t=S&&S.task;if(!t){bar.hidden=true;return;}bar.hidden=false;
@@ -1596,7 +1597,7 @@ function taskBar(res,gain,e){
   el("h2",{class:"tb-t"},t.t),el("p",{class:"tb-d"},t.d),
   el("p",{class:"tb-k"},"Баллы: 60% — верный результат, 20% — без касаний, 20% — не больше "+t.par+" блоков."+(pr&&pr.solved?" Ваш лучший результат: "+pr.best+" из "+t.pts+".":"")));
  if(res){const box=el("div",{class:"tb-r "+(res.ok?"ok":"bad")});
-  if(res.ok){box.append(el("b",{},"Решено верно: "+res.pts+" из "+t.pts+" баллов"+(gain?" (+"+gain+" к вашему счёту)":" (рекорд не побит)")));
+  if(res.ok){box.append(el("b",{},res.zero?"Маршрут выполнен · 0 баллов после просмотра готового решения":"Решено верно: "+res.pts+" из "+t.pts+" баллов"+(gain?" (+"+gain+" к вашему счёту)":" (рекорд не побит)")));
    const ul=el("ul",{});for(const [n,pt,ok] of res.items)ul.append(el("li",{class:ok?"y":"n"},(ok?"✓ ":"✗ ")+n+" — "+(ok?pt:0)+" б."));box.append(ul);
    const nx=TASKS.find(x=>x.id>t.id&&!(tpGet()[x.id]||{}).solved)||TASKS.find(x=>x.id>t.id);
    box.append(el("div",{class:"tb-b"},nx?el("button",{class:"btn sm pri",type:"button",onclick:()=>loadTask(nx.id)},"Следующая задача"):null,el("button",{class:"btn sm",type:"button",onclick:()=>{location.hash="#tasks";}},"К задачам")));}
@@ -2977,12 +2978,15 @@ async function cabAI(box){
 }
 // ===== ограниченный ИИ-помощник: фиксированные действия без свободного чата =====
 const AI={status:null,loading:null,review:null,help:null,solution:null,solutions:null,busy:false,panel:null};
+function aiZeroKey(id){return (ACC.user&&ACC.user.id||"guest")+":"+id;}
+function aiZeroMark(id){if(!id)return;const viewed=lsGet("rc-ai-zero",{});viewed[aiZeroKey(id)]=true;lsSet("rc-ai-zero",viewed);}
+function aiZeroCurrent(){return !!(S.task&&(lsGet("rc-ai-zero",{})[aiZeroKey(S.task.id)]||(AI.status&&Array.isArray(AI.status.solution_views)&&AI.status.solution_views.includes(String(S.task.id)))));}
 function aiReset(){AI.status=null;AI.loading=null;AI.review=null;AI.help=null;AI.solution=null;AI.solutions=null;AI.busy=false;AI.error=null;AI.panel=null;}
 async function aiStatus(force){
  if(AI.status&&!force)return AI.status;
  if(AI.loading)return AI.loading;
  if(!ACC.user)return {allowed:false,available:false};
- AI.loading=api("ai/status").then(s=>{AI.status=s;return s;}).catch(e=>({allowed:true,available:false,error:e.message})).finally(()=>{AI.loading=null;});
+ AI.loading=api("ai/status").then(s=>{AI.status=s;const viewed=lsGet("rc-ai-zero",{});for(const id of s.solution_views||[])viewed[aiZeroKey(id)]=true;lsSet("rc-ai-zero",viewed);return s;}).catch(e=>({allowed:true,available:false,error:e.message})).finally(()=>{AI.loading=null;});
  return AI.loading;
 }
 function aiProgram(){
@@ -3018,8 +3022,8 @@ function aiBlocksFromText(source){
  return prog(commands);
 }
 function aiAssembleSolution(source){
- const workspace=aiBlocksFromText(source);if(S.running)stopRun();setMode("blocks");loadWs(workspace);saveWs();AI.review=null;
- setMsg("Готовое решение собрано в редакторе блоков. За эту задачу — 0 баллов; можно запустить и изменить программу.");
+ const workspace=aiBlocksFromText(source);if(S.running)stopRun();if(S.task)aiZeroMark(S.task.id);setMode("blocks");loadWs(workspace);saveWs();AI.review=null;setMp("3d");
+ setMsg("Карта и готовые блоки загружены. За эту задачу — 0 баллов; можно запустить и изменить программу.");
 }
 function aiReviewCurrent(){
  const r=AI.review,t=S.task;
@@ -3079,12 +3083,12 @@ function aiTaskPanel(bar){
  async function runSolve(){
   if(AI.busy||!confirm("Собрать готовое решение из блоков? За текущую задачу будет начислено 0 баллов. Получить баллы можно, решив аналогичное задание."))return;
   AI.busy=true;AI.error=null;render();
-  try{AI.solution=await api("ai/solve",{body:aiSolutionPayload()});aiAssembleSolution(AI.solution.solution);AI.solution.assembled=true;}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
+  try{AI.solution=await api("ai/solve",{body:aiSolutionPayload()});aiZeroMark(S.task.id);aiAssembleSolution(AI.solution.solution);AI.solution.assembled=true;}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
  }
  async function runSolutions(){
   if(AI.busy||!confirm("Получить три других решения для сборки из блоков? За текущую задачу будет начислено 0 баллов. Получить баллы можно, решив аналогичное задание."))return;
   AI.busy=true;AI.error=null;AI.solution=null;render();
-  try{const r=await api("ai/solutions",{body:aiSolutionPayload()});AI.solutions=r.items||[];AI.review=null;}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
+  try{const r=await api("ai/solutions",{body:aiSolutionPayload()});aiZeroMark(S.task.id);AI.solutions=r.items||[];AI.review=null;}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
  }
  async function submitReview(){
   if(!AI.review||AI.busy)return;AI.busy=true;AI.error=null;render();
