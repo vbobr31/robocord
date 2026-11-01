@@ -2812,13 +2812,13 @@ async function cabShow(){const root=$("#cab");if(!root)return;root.textContent="
  if(!ACC.user){const g=el("div",{class:"authgrid"});root.append(g);loginForm(g,"student",cabShow);loginForm(g,"teacher",cabShow);
   root.append(el("p",{class:"hint"},"Регистрации на сайте нет. Логин и пароль ученику выдаёт учитель в своём кабинете, учителю — администратор платформы."));return;}
  if(!isTeacher()){location.hash="#profile";return;}
- const tabs=isAdmin()?[["stats","Статистика"],["admins","Администраторы"],["teachers","Учителя и школы"],["students","Ученики"],["classes","Мои классы"],["tasks","Задачи"],["courses","Курсы"],["maps","Все карты"],["site","Сайт: подвал"]]:[["classes","Мои классы"],["tasks","Мои задачи"],["courses","Курсы"]];
+ const tabs=isAdmin()?[["stats","Статистика"],["ai","ИИ и API"],["admins","Администраторы"],["teachers","Учителя и школы"],["students","Ученики"],["classes","Мои классы"],["tasks","Задачи"],["courses","Курсы"],["maps","Все карты"],["site","Сайт: подвал"]]:[["classes","Мои классы"],["tasks","Мои задачи"],["courses","Курсы"]];
  if(!tabs.find(t=>t[0]===CAB.tab))CAB.tab=tabs[0][0];
  root.append(el("div",{class:"pcard"},el("div",{},el("h2",{},(isAdmin()?"Админ-панель · ":"Кабинет учителя · ")+fio(ACC.user)),el("p",{class:"hint"},"Логин: "+ACC.user.login)),
   el("button",{class:"btn ghost",type:"button",onclick:async()=>{try{await api("logout",{body:{}});}catch(e){}accSet(null,null);cabShow();}},"Выйти")),
   el("div",{class:"seg wrapseg"},...tabs.map(([k,n])=>el("button",{type:"button","aria-pressed":String(CAB.tab===k),onclick:()=>{CAB.tab=k;cabShow();}},n))));
  const box=el("div",{class:"cabbox"});root.append(box);
- try{await ({stats:cabStats,admins:cabAdmins,teachers:cabTeachers,students:cabStudents,classes:cabClasses,tasks:cabTasks,courses:cabCourses,maps:cabMaps,site:cabSite})[CAB.tab](box);}
+ try{await ({stats:cabStats,ai:cabAI,admins:cabAdmins,teachers:cabTeachers,students:cabStudents,classes:cabClasses,tasks:cabTasks,courses:cabCourses,maps:cabMaps,site:cabSite})[CAB.tab](box);}
  catch(e){box.append(note(e.message,"bad"));}}
 async function cabStats(box){const s=await api("admin/stats");
  const card=(n,l,k)=>el("div",{class:"stat"+(k?" "+k:"")},el("b",{},String(n)),el("span",{},l));
@@ -2953,6 +2953,19 @@ async function cabSite(box){const s=await api("settings");
  const msg=note("");f.append(msg);
  f.onsubmit=async e=>{e.preventDefault();await api("settings",{method:"PUT",body:Object.fromEntries(new FormData(f))});msg.textContent="Сохранено.";msg.className="msg ok";footerShow();};
  box.append(f);}
+async function cabAI(box){
+ const s=await api("ai/config"),msg=note("");
+ const keyField=field(s.has_key?"Новый API-ключ (оставьте пустым, чтобы сохранить текущий)":"API-ключ",{name:"api_key",type:"password",autocomplete:"off",placeholder:s.has_key?"Ключ сохранён на сервере":"sk-…"});
+ const f=el("form",{class:"authf wide"},el("h3",{},"OpenAI-совместимый API"),
+  field("Base URL",{name:"base_url",type:"url",required:true,value:s.base_url||"https://api.apihost.one/v1",placeholder:"https://api.apihost.one/v1"}),
+  field("Модель",{name:"model",required:true,value:s.model||"claude-fable-5",placeholder:"claude-fable-5"}),keyField,
+  el("button",{class:"btn pri",type:"submit"},"Сохранить настройки ИИ"),msg,
+  el("p",{class:"hint"},"Настройки применяются сразу для сайта и ПК-приложений. Ключ хранится на сервере в зашифрованном виде и никогда не показывается в браузере. Запросы могут расходовать баланс выбранного API."));
+ f.onsubmit=async e=>{e.preventDefault();msg.textContent="Сохранение…";msg.className="msg";
+  try{const d=Object.fromEntries(new FormData(f));await api("ai/config",{method:"PUT",body:d});keyField.querySelector("input").value="";msg.textContent="Настройки ИИ сохранены и уже действуют.";msg.className="msg ok";if(typeof aiReset==="function")aiReset();}
+  catch(err){msg.textContent=err.message;msg.className="msg bad";}};
+ box.append(el("div",{class:"ai-teacher"},el("b",{},s.available?"ИИ API настроен":"ИИ API требует настройки"),el("span",{class:"hint"},s.has_key?"Ключ сохранён":"Ключ не сохранён")),f);
+}
 // ===== ограниченный ИИ-помощник: фиксированные действия без свободного чата =====
 const AI={status:null,loading:null,review:null,help:null,busy:false,panel:null};
 function aiReset(){AI.status=null;AI.loading=null;AI.review=null;AI.help=null;AI.busy=false;AI.error=null;AI.panel=null;}
