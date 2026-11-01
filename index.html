@@ -146,6 +146,16 @@ footer{border-top:1px solid var(--line);padding:24px 0 40px;color:var(--ink2);fo
 .ts-t:hover{border-color:var(--brand);transform:translateY(-1px)}.ts-t.done{border-color:var(--ok)}
 .ts-id{font-family:var(--f-mono);font-size:12px;color:var(--ink2)}.ts-cat{font-size:12px;color:var(--brand);font-weight:600}.ts-tt{font-size:16px}.ts-lv{color:var(--signal);letter-spacing:2px;font-size:12px}.ts-pt{font-size:13px;font-weight:600}
 .ts-tab{border-collapse:collapse;width:100%;font-size:14px}.ts-tab th,.ts-tab td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}.ts-tab td.y{color:var(--ok);font-weight:600}.ts-tab td.n{color:var(--danger)}
+/* ---- ограниченный ИИ, ежедневная цель и рейтинг ---- */
+.ai-panel{margin-top:14px;padding:14px;border:1.5px solid var(--brand);border-radius:12px;background:var(--code);display:grid;gap:10px}
+.ai-head,.ai-goal{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}.ai-head>div{display:grid}.ai-head small,.ai-note{color:var(--ink2);font-size:13px}
+.ai-badge{font:600 11px var(--f-mono);padding:4px 8px;border-radius:99px;background:var(--brand);color:var(--brand-ink)}
+.ai-actions{margin-top:0}.ai-grade{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}.ai-grade b{font:700 24px var(--f-display);color:var(--brand)}.ai-grade span{font-weight:600}
+.ai-summary{white-space:pre-wrap}.ai-criteria{list-style:none;padding:0;margin:0;display:grid;gap:7px}.ai-criteria li{padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}.ai-criteria span{display:block;color:var(--ink2);font-size:13px;margin-top:3px}
+.ai-analogy{padding:12px;border-left:4px solid var(--signal);border-radius:8px;background:var(--surface);display:grid;gap:7px}.ai-analogy h3{font-size:16px}
+.ai-daily,.ai-leaders{display:grid;gap:14px}.ai-goal{padding:16px;border:1.5px solid var(--brand);border-radius:12px;background:var(--surface)}.ai-goal>b{font:700 30px var(--f-display);color:var(--brand)}
+.ai-table{min-width:620px}.ai-table .ai-me{background:var(--code)}.ai-table td:last-child b{color:var(--brand);font-size:17px}
+.ai-teacher{padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.ai-teacher label{display:flex;align-items:center;gap:9px}.ai-teacher input{width:22px;height:22px;accent-color:var(--brand)}
 
 [hidden]{display:none!important}
 .sensors span:empty{display:none}
@@ -1381,7 +1391,7 @@ function openConn(){
  document.body.append(el("div",{id:"hwModal",onclick:e=>{if(e.target.id==="hwModal")close();}},box));
 }
 // ===== ЗАДАЧИ: база заданий, проверка результата, баллы и прогресс ученика =====
-const TCAT=[{id:"move",n:"Движение"},{id:"shape",n:"Повороты и фигуры"},{id:"loop",n:"Циклы и вычисления"},{id:"cond",n:"Условия и датчики"},{id:"line",n:"Линия и цвет"},{id:"dist",n:"Расстояние и препятствия"},{id:"maze",n:"Лабиринты"},{id:"arm",n:"Манипулятор"},{id:"teacher",n:"От учителя"}];
+const TCAT=[{id:"move",n:"Движение"},{id:"shape",n:"Повороты и фигуры"},{id:"loop",n:"Циклы и вычисления"},{id:"cond",n:"Условия и датчики"},{id:"line",n:"Линия и цвет"},{id:"dist",n:"Расстояние и препятствия"},{id:"maze",n:"Лабиринты"},{id:"arm",n:"Манипулятор"},{id:"teacher",n:"От учителя"},{id:"ai",n:"Задачи ИИ"}];
 const TBASE={1:10,2:15,3:20,4:30};
 const fld=o=>Object.assign({name:"Задача",desc:"",need:[],start:{x:0.3,y:0.6,a:0},obs:[],lines:[],zones:[],finish:null,cans:[],goal:null},o);
 const st0=(x,y,a)=>({x,y,a:a||0});
@@ -1554,6 +1564,8 @@ function tScore(t,s,blocks){ // возвращает {ok,msg,items,pts}
  return {ok:true,pts:Math.round(t.pts*(a+b+c)),items:[["Задача решена верно",Math.round(t.pts*a),true],["Без касаний препятствий и стен",Math.round(t.pts*0.2),s.hits===0],["Не больше "+t.par+" блоков в программе ("+blocks+")",Math.round(t.pts*0.2),blocks<=t.par]]};}
 function taskVerdict(s){
  const t=S.task,blocks=Math.max(0,(S.nb||1)-1),r=tScore(t,s,blocks),p=tpGet(),e=p[t.id]||{att:0,best:0};
+ S.lastTaskResult={taskId:t.id,ok:r.ok,msg:r.msg||"",pts:r.pts||0,max_pts:t.pts,items:r.items||[],blocks,hits:s.hits||0,time:s.t||0};
+ if(typeof AI!=="undefined"){AI.review=null;AI.help=null;AI.error=null;}
  e.att=(e.att||0)+1;let gain=0;
  if(r.ok)S.lastOk={task:t.id,pts:r.pts};
  if(r.ok){const nb=r.pts>(e.best||0);gain=nb?r.pts-(e.best||0):0;if(nb){e.best=r.pts;e.t=+s.t.toFixed(1);e.blocks=blocks;}e.solved=true;e.date=new Date().toISOString().slice(0,10);}
@@ -1565,7 +1577,8 @@ function taskVerdict(s){
 function loadTask(id){
  const t=TASKS.find(x=>x.id===id);if(!t)return;
  if(typeof S!=="undefined"&&S.running)return;
- S.task=t;S.fid="free";S.field=JSON.parse(JSON.stringify(t.field));S.hist=[];for(const k of t.need)S.cfg[k]=true;lsSet("rs-cfg",S.cfg);saveField();
+ S.task=t;S.lastTaskResult=null;if(typeof AI!=="undefined"){AI.review=null;AI.help=null;AI.error=null;}
+ S.fid="free";S.field=JSON.parse(JSON.stringify(t.field));S.hist=[];for(const k of t.need)S.cfg[k]=true;lsSet("rs-cfg",S.cfg);saveField();
  renderField();renderRobot();renderSens();buildRobot();buildField3D();resetSim(true);
  loadWs(prog([]));saveWs();
  setMsg("Составьте программу и нажмите «Вывести в 3D».");$("#hTry").textContent="попыток "+((tpGet()[t.id]||{}).att||0);taskBar();}
@@ -1573,7 +1586,7 @@ function taskBar(res,gain,e){
  const bar=$("#taskBar");if(!bar)return;bar.textContent="";
  const t=S&&S.task;if(!t){bar.hidden=true;return;}bar.hidden=false;
  const cat=TCAT.find(c=>c.id===t.cat).n,pr=tpGet()[t.id];
- bar.append(el("div",{class:"tb-h"},el("span",{class:"tb-n"},t.id>=UT_BASE?"Задача от "+(t.author||"учителя"):"Задача "+t.id+" из "+TASKS.filter(x=>x.id<UT_BASE).length),el("span",{class:"tb-c"},cat),el("span",{class:"tb-p"},"до "+t.pts+" баллов"),
+ bar.append(el("div",{class:"tb-h"},el("span",{class:"tb-n"},t.id>=UT_BASE?(t.ai?"Ежедневная задача ИИ":"Задача от "+(t.author||"учителя")):"Задача "+t.id+" из "+TASKS.filter(x=>x.id<UT_BASE).length),el("span",{class:"tb-c"},cat),el("span",{class:"tb-p"},"до "+t.pts+" баллов"),
   el("span",{class:"sp"}),el("button",{class:"btn sm ghost",type:"button",onclick:()=>{S.task=null;taskBar();location.hash="#tasks";}},"К списку задач")),
   el("h2",{class:"tb-t"},t.t),el("p",{class:"tb-d"},t.d),
   el("p",{class:"tb-k"},"Баллы: 60% — верный результат, 20% — без касаний, 20% — не больше "+t.par+" блоков."+(pr&&pr.solved?" Ваш лучший результат: "+pr.best+" из "+t.pts+".":"")));
@@ -1584,16 +1597,17 @@ function taskBar(res,gain,e){
    box.append(el("div",{class:"tb-b"},nx?el("button",{class:"btn sm pri",type:"button",onclick:()=>loadTask(nx.id)},"Следующая задача"):null,el("button",{class:"btn sm",type:"button",onclick:()=>{location.hash="#tasks";}},"К задачам")));}
   else{box.append(el("b",{},"Пока не решено"),el("p",{},res.msg),el("p",{class:"tb-hint"},"Измените программу и запустите ещё раз. Попыток можно делать сколько угодно."));}
   bar.append(box);}
+ if(typeof aiTaskPanel==="function")aiTaskPanel(bar);
 }
-// ---- задачи от учителей (с сервера): номера 10000+, проверка собирается из описания ----
+// ---- задачи от учителей и ИИ (с сервера): номера 10000+, проверка собирается из описания ----
 const UT_BASE=10000;
 function userTaskCheck(c){c=c||{};
  if(c.type==="say")return E.say(...String(c.value||"").split("|").map(x=>x.trim()).filter(Boolean));
  if(c.type==="at")return E.at((+c.x||0)/100,(+c.y||0)/100,Math.max(2,+c.tol||5)/100);
  return E.won;}
 function userTaskFrom(x){const d=x.data||{},f=Object.assign({name:x.title,desc:x.desc,need:[],start:{x:0.3,y:0.6,a:0},obs:[],lines:[],zones:[],finish:null,cans:[],goal:null},d.field||{});
- const t=T("teacher",x.level||2,x.title,x.desc||"",+d.par||5,d.need||[],f,userTaskCheck(d.check),!!d.strict);
- t.id=UT_BASE+x.id;t.sid=x.id;t.pts=TBASE[t.lv];t.author=x.author;t.cls=x.cls;t.field=Object.assign({},t.field,{name:t.t,desc:t.d});return t;}
+ const t=T(x.source==="ai"?"ai":"teacher",x.level||2,x.title,x.desc||"",+d.par||5,d.need||[],f,userTaskCheck(d.check),!!d.strict);
+ t.id=UT_BASE+x.id;t.sid=x.id;t.pts=TBASE[t.lv];t.author=x.author;t.cls=x.cls;t.ai=x.source==="ai";t.ai_day=x.ai_day||null;t.field=Object.assign({},t.field,{name:t.t,desc:t.d});return t;}
 let utLoaded=false;
 async function loadUserTasks(){if(typeof api!=="function")return;
  try{const list=await api("tasks");for(let i=TASKS.length-1;i>=0;i--)if(TASKS[i].id>=UT_BASE)TASKS.splice(i,1);
@@ -1611,9 +1625,15 @@ function tasksShow(){
   el("div",{class:"ts-card"},el("b",{},String(sum)),el("span",{},"баллов из "+max)),
   el("div",{class:"ts-card"},el("b",{},solved+" / "+TASKS.length),el("span",{},"задач решено")),
   el("div",{class:"ts-bar"},el("i",{style:"width:"+Math.round(sum/max*100)+"%"}))));
+ const canDaily=ACC.user&&typeof AI!=="undefined"&&AI.status&&AI.status.allowed;
+ if(TUI.tab==="daily"&&!canDaily)TUI.tab="list";
  root.append(el("div",{class:"seg wrapseg",role:"group"},
   el("button",{type:"button","aria-pressed":String(TUI.tab==="list"),onclick:()=>{TUI.tab="list";tasksShow();}},"Все задачи"),
+  canDaily?el("button",{type:"button","aria-pressed":String(TUI.tab==="daily"),onclick:()=>{TUI.tab="daily";tasksShow();}},"Ежедневные задания"):null,
+  ACC.user?el("button",{type:"button","aria-pressed":String(TUI.tab==="leaders"),onclick:()=>{TUI.tab="leaders";tasksShow();}},"Таблица лидеров"):null,
   el("button",{type:"button","aria-pressed":String(TUI.tab==="mine"),onclick:()=>{TUI.tab="mine";tasksShow();}},"Мои результаты")));
+ if(TUI.tab==="daily"){aiDailyInto(root);return;}
+ if(TUI.tab==="leaders"){aiLeadersInto(root);return;}
  if(TUI.tab==="mine"){tasksMine(root,p);return;}
  const select=(key,items,label)=>el("label",{class:"ts-filter"},el("span",{},label),el("select",{value:TUI[key],onchange:e=>{TUI[key]=e.target.value;tasksShow();}},items.map(([v,n])=>el("option",{value:v,selected:String(TUI[key])===String(v)},n))));
  const search=el("input",{type:"search",placeholder:"Название, номер или описание",value:TUI.q,"aria-label":"Поиск задач",onkeydown:e=>{if(e.key==="Enter"){e.preventDefault();TUI.q=search.value.trim();tasksShow();}}});
@@ -1640,7 +1660,7 @@ function tasksShow(){
  const grid=el("div",{class:"ts-grid"});
  for(const t of rows){const e=p[t.id]||{};
   grid.append(el("button",{type:"button",class:"ts-t"+(e.solved?" done":""),onclick:()=>{if(TUI.kit!=="all"){S.cfg.model=TUI.kit;lsSet("rs-cfg",S.cfg);}lsSet("rc-task",t.id);location.hash="#sim";}},
-   el("span",{class:"ts-id"},t.id>=UT_BASE?"★":"№"+t.id),el("span",{class:"ts-cat"},t.id>=UT_BASE?("от "+(t.author||"учителя")+(t.cls?" · "+t.cls:"")):TCAT.find(c=>c.id===t.cat).n),
+   el("span",{class:"ts-id"},t.id>=UT_BASE?(t.ai?"ИИ":"★"):"№"+t.id),el("span",{class:"ts-cat"},t.id>=UT_BASE?(t.ai?("Ежедневная задача"+(t.ai_day?" · "+t.ai_day:"")):("от "+(t.author||"учителя")+(t.cls?" · "+t.cls:""))):TCAT.find(c=>c.id===t.cat).n),
    el("b",{class:"ts-tt"},t.t),el("span",{class:"ts-lv","aria-label":"Уровень "+t.lv+" из 4"},"●".repeat(t.lv)+"○".repeat(4-t.lv)),
    el("span",{class:"ts-pt"},e.solved?"✓ "+e.best+" / "+t.pts+" б.":"до "+t.pts+" б.")));}
  if(!rows.length)root.append(el("div",{class:"ts-empty"},el("b",{},"Ничего не найдено"),el("p",{},"Измените запрос или сбросьте фильтры.")));else root.append(grid);
@@ -2108,7 +2128,7 @@ function initBlockly(){
 // ---------- запуск ----------
 function updBtns(){$("#bRun").disabled=S.running;{const g=$("#mGo");if(g){g.disabled=S.running;$("#mStop").disabled=!S.running;}}if(!$("#bConn")){const fr=$("#fsRun");if(fr){fr.disabled=S.running;$("#fsStop").disabled=!S.running;}$("#bStop").disabled=!S.running;return;}const fr=$("#fsRun");if(fr){fr.disabled=S.running;$("#fsStop").disabled=!S.running;}$("#bRunHw").disabled=S.running||!HW.cur;$("#bConn").disabled=S.running;$("#bStop").disabled=!S.running;}
 function resetSim(quiet){if(JOY.active)joyClose();S.running=false;S.gen=null;if(S.ws)try{S.ws.highlightBlock(null);}catch(e){}S.sim=new Sim(S.field,S.cfg);buildCans3D();updBtns();if(!quiet)setMsg("Робот возвращён на старт.");syncRobot();}
-function startRun(hw){
+async function startRun(hw){
  if(JOY.active)joyClose();if(S.running)return;
  let make,nb;
  if(S.mode==="cpp"){let ast;try{ast=cppParse(cppGet());}catch(e){setMsg("Ошибка в программе: "+e.message,"bad");cppMark(e.cppLine,true);return;}
@@ -2117,6 +2137,7 @@ function startRun(hw){
   const json=Blockly.serialization.workspaces.save(S.ws);nb=countBlocks(json);
   if(nb<=1){setMsg("Программа пуста. Добавьте блоки под блок «когда программа запущена» или нажмите «Пример».","bad");return;}
   make=sim=>run(sim,json,S.ctx);S.ctx={stop:false,hl:id=>{try{S.ws.highlightBlock(id);}catch(e){}}};}
+ if(hw&&typeof aiGateRobot==="function"&&!(await aiGateRobot()))return;
  if(hw){if(!HW.cur){setMsg("Сначала подключите робота.","bad");return;}S.sim=new HwSim(S.field,S.cfg,HW.cur);}else S.sim=new Sim(S.field,S.cfg);
  if(!hw&&S.sim.collides(S.sim.x,S.sim.y,S.sim.a)){setMsg("Старт стоит на препятствии или за краем поля. Передвиньте старт на вкладке «Поле».","bad");return;}
  S.nb=nb;S.gen=make(S.sim);S.running=true;
@@ -2654,7 +2675,7 @@ async function api(path,opt){opt=opt||{};
  const d=await r.json().catch(()=>({}));
  if(r.status===401&&ACC.token&&path!=="login"){accSet(null,null);}
  if(!r.ok)throw new Error(d.error||("ошибка "+r.status));return d;}
-function accSet(user,token){ACC.user=user;ACC.token=token;lsSet("rc-user",user);lsSet("rc-token",token);accNav();}
+function accSet(user,token){ACC.user=user;ACC.token=token;lsSet("rc-user",user);lsSet("rc-token",token);if(typeof aiReset==="function")aiReset();if(typeof utLoaded!=="undefined")utLoaded=false;accNav();}
 const isAdmin=()=>ACC.user&&ACC.user.role==="admin",isTeacher=()=>ACC.user&&(ACC.user.role==="teacher"||ACC.user.role==="admin");
 const ROLE={student:"ученик",teacher:"учитель",admin:"владелец платформы"};
 function accNav(){const a=$("#navAcc");if(a)a.textContent=ACC.user?ACC.user.login:(BUILD==="site"?"Войти":"Профиль");
@@ -2847,8 +2868,11 @@ async function cabClasses(box){const cls=await api("classes");
  if(!cls.length){box.append(el("p",{class:"hint"},"Классов пока нет. Добавьте класс, затем учеников — логины и пароли создадутся автоматически."));return;}
  box.append(el("div",{class:"seg wrapseg"},...cls.map(c=>el("button",{type:"button","aria-pressed":String(CAB.cls===c.id),onclick:()=>{CAB.cls=c.id;cabShow();}},c.name+" ("+c.students+")"))));
  const c=cls.find(x=>x.id===CAB.cls)||cls[0];CAB.cls=c.id;
- const [st,sol]=await Promise.all([api("classes/"+c.id+"/students"),api("classes/"+c.id+"/solutions")]);
- const res=el("div");
+ const [st,sol,reviews,aiState]=await Promise.all([api("classes/"+c.id+"/students"),api("classes/"+c.id+"/solutions"),api("ai/reviews?class_id="+c.id),api("ai/status")]);
+ const res=el("div"),aiMsg=el("span",{class:"hint"});
+ const aiCheck=el("input",{type:"checkbox",checked:!!aiState.ai_enabled,"aria-label":"Разрешить ИИ ученикам"});
+ aiCheck.onchange=async()=>{aiCheck.disabled=true;aiMsg.textContent="Сохранение…";try{await api("ai/settings",{method:"PUT",body:{enabled:aiCheck.checked}});ACC.user.ai_enabled=aiCheck.checked;lsSet("rc-user",ACC.user);aiMsg.textContent=aiCheck.checked?"ИИ разрешён ученикам всех ваших классов.":"ИИ скрыт и заблокирован для учеников всех ваших классов.";}catch(e){aiCheck.checked=!aiCheck.checked;aiMsg.textContent=e.message;}finally{aiCheck.disabled=false;}};
+ box.append(el("div",{class:"ai-teacher"},el("label",{},aiCheck,el("b",{},"Разрешить ИИ-помощника ученикам")),aiMsg));
  const add=el("form",{class:"authf wide"},el("h3",{},"Добавить учеников в "+c.name),
   el("label",{class:"fld"},el("span",{},"ФИО учеников — по одному в строке (можно оставить пустым)"),el("textarea",{name:"names",rows:"5",placeholder:"Иванов Пётр\nСмирнова Анна"})),
   field("…или просто количество",{name:"count",type:"number",min:"1",max:"60",value:"1"}),
@@ -2857,10 +2881,12 @@ async function cabClasses(box){const cls=await api("classes");
   try{const r=await api("classes/"+c.id+"/students",{body:{names,count:+d.get("count")||1}});res.textContent="";res.append(credsBox(r,"Ученики добавлены в "+c.name));add.reset();}
   catch(err){res.textContent="";res.append(note(err.message,"bad"));}};
  box.append(add,el("h3",{class:"mh"},"Ученики "+c.name+" ("+st.length+")"),
-  el("table",{class:"tbl"},el("thead",{},el("tr",{},...["Ученик","Логин","Решено задач","Баллы","Был в сети",""].map(h=>el("th",{},h)))),
-   el("tbody",{},...st.map(s=>{const out=el("td");return el("tr",{},el("td",{},fio(s)===s.login?"—":fio(s)),el("td",{},el("code",{},s.login)),el("td",{},s.solved+" из "+s.sols),el("td",{},String(s.points)),el("td",{},when(s.last_seen)),
+  el("table",{class:"tbl"},el("thead",{},el("tr",{},...["Ученик","Логин","Решено задач","Баллы","ИИ-баллы","Был в сети",""].map(h=>el("th",{},h)))),
+   el("tbody",{},...st.map(s=>{const out=el("td");return el("tr",{},el("td",{},fio(s)===s.login?"—":fio(s)),el("td",{},el("code",{},s.login)),el("td",{},s.solved+" из "+s.sols),el("td",{},String(s.points)),el("td",{},String(s.ai_points||0)),el("td",{},when(s.last_seen)),
     el("td",{},el("button",{class:"btn sm ghost",type:"button",onclick:async()=>{const r=await api("students/"+s.id+"/reset",{body:{}});out.textContent="";out.append(credsBox([{name:fio(s),login:r.login,password:r.password}],"Новый пароль"));}},"Новый пароль"),
      el("button",{class:"btn sm ghost",type:"button",onclick:async()=>{if(!confirm("Удалить ученика "+s.login+"?"))return;await api("students/"+s.id,{method:"DELETE"});cabShow();}},"Удалить"),out));}))),
+  el("h3",{class:"mh"},"ИИ-оценки, отправленные учениками"),
+  reviews.length?el("table",{class:"tbl"},el("thead",{},el("tr",{},...["Дата","Ученик","Задача","Оценка","Баллы","Комментарий ИИ"].map(h=>el("th",{},h)))),el("tbody",{},...reviews.map(r=>el("tr",{},el("td",{},when(r.created_at)),el("td",{},r.last_name?r.last_name+" "+r.first_name:r.login),el("td",{},r.task_title),el("td",{},String(r.grade)),el("td",{},r.points+" / "+r.max_points),el("td",{},r.feedback.summary||"—"))))):el("p",{class:"hint"},"Отправленных ИИ-оценок пока нет."),
   el("h3",{class:"mh"},"Последние решения класса"),
   sol.length?el("table",{class:"tbl"},el("tbody",{},...sol.slice(0,100).map(s=>el("tr",{},el("td",{},when(s.created_at)),el("td",{},s.last_name?s.last_name+" "+s.first_name:s.login),el("td",{},s.title),el("td",{},s.ok?"решено, "+s.points+" б.":"не решено"))))):el("p",{class:"hint"},"Решений пока нет."),
   el("button",{class:"btn sm ghost",type:"button",onclick:async()=>{if(!confirm("Удалить класс "+c.name+"? Ученики останутся, но без класса."))return;await api("classes/"+c.id,{method:"DELETE"});CAB.cls=null;cabShow();}},"Удалить класс"));}
@@ -2927,6 +2953,103 @@ async function cabSite(box){const s=await api("settings");
  const msg=note("");f.append(msg);
  f.onsubmit=async e=>{e.preventDefault();await api("settings",{method:"PUT",body:Object.fromEntries(new FormData(f))});msg.textContent="Сохранено.";msg.className="msg ok";footerShow();};
  box.append(f);}
+// ===== ограниченный ИИ-помощник: фиксированные действия без свободного чата =====
+const AI={status:null,loading:null,review:null,help:null,busy:false,panel:null};
+function aiReset(){AI.status=null;AI.loading=null;AI.review=null;AI.help=null;AI.busy=false;AI.error=null;AI.panel=null;}
+async function aiStatus(force){
+ if(AI.status&&!force)return AI.status;
+ if(AI.loading)return AI.loading;
+ if(!ACC.user)return {allowed:false,available:false};
+ AI.loading=api("ai/status").then(s=>{AI.status=s;return s;}).catch(e=>({allowed:true,available:false,error:e.message})).finally(()=>{AI.loading=null;});
+ return AI.loading;
+}
+function aiProgram(){
+ if(S.mode==="cpp")return cppGet();
+ try{return blocksToCpp(Blockly.serialization.workspaces.save(S.ws));}catch(e){return "";}
+}
+function aiPayload(source){
+ const t=S.task,r=S.lastTaskResult&&S.lastTaskResult.taskId===t.id?S.lastTaskResult:{ok:false,msg:"",pts:0,max_pts:t.pts,items:[]};
+ return {task:{id:String(t.id),title:t.t,desc:t.d,cat:t.cat,level:t.lv,points:t.pts},mode:S.mode,program:aiProgram(),source:source==="robot"?"robot":(r.ok||r.msg||(r.items&&r.items.length)?"simulator":"code"),result:{ok:!!r.ok,msg:r.msg||"",pts:r.pts||0,max_pts:t.pts,blocks:r.blocks||0,hits:r.hits||0,time:r.time||0,items:r.items||[]}};
+}
+function aiReviewCurrent(){
+ const r=AI.review,t=S.task;
+ return !!(r&&t&&r.taskId===t.id&&r.program===aiProgram()&&r.points>0);
+}
+async function aiGateRobot(){
+ if(!S.task||!ACC.user)return true;
+ const status=await aiStatus();
+ if(!status.allowed)return true;
+ if(aiReviewCurrent())return true;
+ setMsg("Сначала нажмите «ИИ: проверить для робота». Запуск разрешён после проверки и начисления баллов. Если программу изменили, проверьте её заново.","bad");
+ if(AI.panel)AI.panel.scrollIntoView({behavior:"smooth",block:"center"});
+ return false;
+}
+function aiTaskPanel(bar){
+ if(!ACC.user||!S.task)return;
+ const panel=el("section",{class:"ai-panel",id:"aiPanel",hidden:true,"aria-label":"ИИ-помощник"});AI.panel=panel;bar.append(panel);
+ aiStatus().then(status=>{
+  if(!status.allowed){panel.hidden=true;if(location.hash==="#tasks")tasksShow();return;}
+  panel.hidden=false;render();
+ }).catch(()=>{panel.hidden=true;});
+ function render(){
+  panel.textContent="";
+  const status=AI.status||{available:false};
+  panel.append(el("div",{class:"ai-head"},el("div",{},el("b",{},"ИИ-помощник"),el("small",{},"Только проверка и подсказка по аналогии. Свободного чата нет.")),el("span",{class:"ai-badge"},"Ограниченный режим")));
+  const check=el("button",{class:"btn sm pri",type:"button",disabled:AI.busy||!status.available,onclick:()=>runCheck("auto")},"ИИ: проверить решение");
+  const robot=el("button",{class:"btn sm",type:"button",disabled:AI.busy||!status.available,onclick:()=>runCheck("robot")},"Проверить для робота");
+  const help=el("button",{class:"btn sm",type:"button",disabled:AI.busy||!status.available,onclick:runHelp},"Не справляюсь");
+  const submit=el("button",{class:"btn sm ghost",type:"button",disabled:AI.busy||!status.available||!AI.review||AI.review.submitted,onclick:submitReview},AI.review&&AI.review.submitted?"Баллы у учителя":"Отправить баллы учителю");
+  panel.append(el("div",{class:"bar ai-actions"},check,robot,help,submit));
+  if(!status.available){panel.append(el("p",{class:"ai-note"},status.error||"ИИ временно недоступен. Обычное решение и проверка в 3D продолжают работать."));return;}
+  if(AI.busy)panel.append(el("p",{class:"ai-note"},"ИИ проверяет данные…"));
+  if(AI.error)panel.append(el("p",{class:"msg bad"},AI.error));
+  if(AI.review){
+   const r=AI.review;panel.append(el("div",{class:"ai-grade"},el("b",{},r.points+" / "+r.max_points+" баллов"),el("span",{},"Оценка "+r.grade+" · "+(r.source==="code"?"проверка кода":"проверка результата"))));
+   panel.append(el("p",{class:"ai-summary"},r.summary));
+   const list=el("ul",{class:"ai-criteria"});for(const c of r.criteria||[])list.append(el("li",{},el("b",{},c.name+" — "+c.points+" / "+c.max_points+" б."),c.comment?el("span",{},c.comment):null));panel.append(list);
+   if(r.source==="code"&&r.points>0)panel.append(el("p",{class:"ai-note"},"Эта проверка разрешает запуск текущей неизменённой программы на подключённом роботе."));
+  }
+  if(AI.help){const h=AI.help;panel.append(el("div",{class:"ai-analogy"},el("b",{},"Сначала попробуйте похожую задачу"),h.hint?el("p",{},"Подсказка: "+h.hint):null,el("h3",{},h.analogy.title||"Задача по аналогии"),el("p",{},h.analogy.task)));}
+ }
+ async function runCheck(source){
+  if(AI.busy)return;AI.busy=true;AI.error=null;AI.help=null;render();
+  try{const payload=aiPayload(source),program=payload.program,r=await api("ai/check",{body:payload});AI.review=Object.assign(r,{taskId:S.task.id,program});}
+  catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
+ }
+ async function runHelp(){
+  if(AI.busy)return;AI.busy=true;AI.error=null;render();
+  try{AI.help=await api("ai/help",{body:aiPayload("code")});}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
+ }
+ async function submitReview(){
+  if(!AI.review||AI.busy)return;AI.busy=true;AI.error=null;render();
+  try{await api("ai/submit",{body:{review_id:AI.review.id}});AI.review.submitted=true;}
+  catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
+ }
+}
+async function aiDailyInto(root){
+ const box=el("section",{class:"ai-daily"},note("Загрузка ежедневных заданий…"));root.append(box);
+ try{const d=await api("ai/daily");box.textContent="";
+  box.append(el("div",{class:"ai-goal"},el("div",{},el("h2",{},"Ежедневная цель"),el("p",{},"Решите "+d.goal+" новых задач, созданных ИИ сегодня.")),el("b",{},d.solved+" / "+d.goal)),el("div",{class:"ts-bar"},el("i",{style:"width:"+Math.min(100,d.solved/d.goal*100)+"%"})));
+  if(!d.tasks.length){box.append(el("div",{class:"ts-empty"},el("b",{},"Сегодняшние задачи ещё не созданы"),el("p",{},"Они появятся автоматически после запуска ежедневной генерации.")));return;}
+  const grid=el("div",{class:"ts-grid"}),progress=tpGet();
+  for(const x of d.tasks){let t=TASKS.find(v=>v.sid===x.id&&v.ai);if(!t){t=userTaskFrom(x);TASKS.push(t);}const done=(progress[t.id]||{}).solved;
+   grid.append(el("button",{type:"button",class:"ts-t"+(done?" done":""),onclick:()=>{lsSet("rc-task",t.id);location.hash="#sim";}},el("span",{class:"ts-id"},"ИИ · задача дня"),el("b",{class:"ts-tt"},t.t),el("span",{class:"ts-lv"},"●".repeat(t.lv)+"○".repeat(4-t.lv)),el("span",{class:"ts-pt"},done?"✓ решено":"до "+t.pts+" б.")));}
+  box.append(grid);
+ }catch(e){box.textContent="";box.append(note(e.message,"bad"));}
+}
+async function aiLeadersInto(root){
+ const box=el("section",{class:"ai-leaders"},note("Загрузка рейтинга…"));root.append(box);
+ const load=async month=>{box.textContent="";box.append(note("Загрузка рейтинга…"));
+  try{const d=await api("ai/leaderboard"+(month?"?month="+month:""));box.textContent="";
+   const monthInput=el("input",{type:"month",value:d.month,"aria-label":"Месяц рейтинга",onchange:()=>load(monthInput.value)});
+   box.append(el("div",{class:"ai-goal"},el("div",{},el("h2",{},"Таблица лидеров"),el("p",{},"Лучший результат по каждой задаче за месяц. Повторные отправки не увеличивают счёт.")),el("label",{class:"ts-filter"},el("span",{},"Месяц"),monthInput)));
+   if(d.me)box.append(el("p",{class:"ai-note"},"Ваш результат: "+d.me.points+" баллов · "+d.me.tasks+" задач"+(d.me.rank?" · место "+d.me.rank:"")+"."));
+   if(!d.rows.length){box.append(el("div",{class:"ts-empty"},el("b",{},"В этом месяце результатов пока нет")));return;}
+   box.append(el("div",{style:"overflow:auto"},el("table",{class:"tbl ai-table"},el("thead",{},el("tr",{},...["Место","Ученик","Класс","Задачи","Баллы"].map(h=>el("th",{},h)))),el("tbody",{},...d.rows.map(r=>el("tr",{class:r.id===ACC.user.id?"ai-me":""},el("td",{},String(r.rank)),el("td",{},r.name),el("td",{},r.cls),el("td",{},String(r.tasks)),el("td",{},el("b",{},String(r.points)))))))),el("p",{class:"hint"},"Лучшие по итогам месяца смогут получить диплом. Оформление диплома будет добавлено отдельно."));
+  }catch(e){box.textContent="";box.append(note(e.message,"bad"));}};
+ await load();
+}
+if(ACC.user)setTimeout(()=>aiStatus().then(()=>{if(location.hash==="#tasks")tasksShow();}),0);
 // ===== запуск страницы =====
 accNav();if(BUILD==="site")footerShow();joyInit();route();draftPull();
 </script>
