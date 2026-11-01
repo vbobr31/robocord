@@ -1574,14 +1574,19 @@ function taskVerdict(s){
  setMsg(r.ok?"Задача решена верно!":"Задача не решена.",r.ok?"ok":"bad");
  taskBar(r,gain,e);
 }
+function openTask(id){
+ lsSet("rc-task",id);
+ if(typeof simBooted!=="undefined"&&simBooted){lsSet("rc-task",null);loadTask(id);}
+ location.hash="#sim";
+}
 function loadTask(id){
  const t=TASKS.find(x=>x.id===id);if(!t)return;
  if(typeof S!=="undefined"&&S.running)return;
- S.task=t;S.lastTaskResult=null;if(typeof AI!=="undefined"){AI.review=null;AI.help=null;AI.error=null;}
+ S.task=t;S.lastTaskResult=null;if(typeof AI!=="undefined"){AI.review=null;AI.help=null;AI.solution=null;AI.solutions=null;AI.error=null;}
  S.fid="free";S.field=JSON.parse(JSON.stringify(t.field));S.hist=[];for(const k of t.need)S.cfg[k]=true;lsSet("rs-cfg",S.cfg);saveField();
  renderField();renderRobot();renderSens();buildRobot();buildField3D();resetSim(true);
  loadWs(prog([]));saveWs();
- setMsg("Составьте программу и нажмите «Вывести в 3D».");$("#hTry").textContent="попыток "+((tpGet()[t.id]||{}).att||0);taskBar();}
+ setMsg("Загружена карта задачи «"+t.field.name+"». Составьте программу и нажмите «Вывести в 3D».");$("#hTry").textContent="попыток "+((tpGet()[t.id]||{}).att||0);taskBar();}
 function taskBar(res,gain,e){
  const bar=$("#taskBar");if(!bar)return;bar.textContent="";
  const t=S&&S.task;if(!t){bar.hidden=true;return;}bar.hidden=false;
@@ -1659,7 +1664,7 @@ function tasksShow(){
  root.append(el("div",{class:"ts-found"},el("span",{},"Найдено: "+rows.length+" из "+TASKS.length),el("button",{class:"btn sm ghost",type:"button",onclick:taskFilterReset},"Сбросить фильтры")));
  const grid=el("div",{class:"ts-grid"});
  for(const t of rows){const e=p[t.id]||{};
-  grid.append(el("button",{type:"button",class:"ts-t"+(e.solved?" done":""),onclick:()=>{if(TUI.kit!=="all"){S.cfg.model=TUI.kit;lsSet("rs-cfg",S.cfg);}lsSet("rc-task",t.id);location.hash="#sim";}},
+  grid.append(el("button",{type:"button",class:"ts-t"+(e.solved?" done":""),onclick:()=>{if(TUI.kit!=="all"){S.cfg.model=TUI.kit;lsSet("rs-cfg",S.cfg);}openTask(t.id);}},
    el("span",{class:"ts-id"},t.id>=UT_BASE?(t.ai?"ИИ":"★"):"№"+t.id),el("span",{class:"ts-cat"},t.id>=UT_BASE?(t.ai?("Ежедневная задача"+(t.ai_day?" · "+t.ai_day:"")):("от "+(t.author||"учителя")+(t.cls?" · "+t.cls:""))):TCAT.find(c=>c.id===t.cat).n),
    el("b",{class:"ts-tt"},t.t),el("span",{class:"ts-lv","aria-label":"Уровень "+t.lv+" из 4"},"●".repeat(t.lv)+"○".repeat(4-t.lv)),
    el("span",{class:"ts-pt"},e.solved?"✓ "+e.best+" / "+t.pts+" б.":"до "+t.pts+" б.")));}
@@ -1770,7 +1775,7 @@ async function renderCourse(){const root=$("#mods");if(!root)return;root.textCon
      el("dt",{text:"Практика"}),el("dd",null,el("ol",null,l.p.map(x=>el("li",{text:x})))),
      el("dt",{text:"Проверь себя"}),el("dd",null,el("ul",null,l.q.map(x=>el("li",{text:x})))),
      el("dt",{text:"Понятия"}),el("dd",null,l.k.map(x=>el("span",{class:"tag",text:x})))),
-    l.tasks?el("div",{class:"bar"},l.tasks.filter(id=>TASKS.find(t=>t.id===id)).map(id=>el("a",{class:"btn sm",href:"#sim",onclick:()=>{lsSet("rc-task",id);}},"Задача "+id+": "+TASKS.find(t=>t.id===id).t))):null))));
+    l.tasks?el("div",{class:"bar"},l.tasks.filter(id=>TASKS.find(t=>t.id===id)).map(id=>el("a",{class:"btn sm",href:"#sim",onclick:()=>openTask(id)},"Задача "+id+": "+TASKS.find(t=>t.id===id).t))):null))));
   root.append(d);});
  // курсы, которые добавили учителя и администраторы
  try{const list=await api("courses");if(list.length){root.append(el("h2",{class:"mh"},"Курсы от учителей"));
@@ -2940,7 +2945,7 @@ async function cabTasks(box,editing){
   catch(err){msg.textContent=err.message;msg.className="msg bad";}};
  box.append(f,el("h3",{class:"mh"},(isAdmin()?"Задачи учителей":"Мои задачи")+" ("+mine.length+")"),
   mine.length?el("div",{class:"slist2"},...mine.map(t=>el("div",{class:"srow"},el("div",{},el("b",{},t.title),el("small",{},(t.public?"всем пользователям":t.cls?"класс "+t.cls:"все мои ученики")+" · автор "+t.author+" · "+when(t.created_at))),
-   el("div",{class:"bar"},el("button",{class:"btn sm pri",type:"button",onclick:async()=>{utLoaded=false;await loadUserTasks();lsSet("rc-task",UT_BASE+t.id);location.hash="#sim";}},"Проверить в симуляторе"),
+   el("div",{class:"bar"},el("button",{class:"btn sm pri",type:"button",onclick:async()=>{utLoaded=false;await loadUserTasks();openTask(UT_BASE+t.id);}},"Проверить в симуляторе"),
     el("button",{class:"btn sm",type:"button",onclick:()=>{box.textContent="";cabTasks(box,t);}},"Изменить"),
     el("button",{class:"btn sm ghost",type:"button",onclick:async()=>{if(!confirm("Удалить задачу «"+t.title+"»?"))return;await api("tasks/"+t.id,{method:"DELETE"});utLoaded=false;cabShow();}},"Удалить"))))):el("p",{class:"hint"},"Задач пока нет."));}
 async function cabMaps(box){box.append(el("p",{class:"hint"},"Все карты пользователей, включая закрытые."));const b=el("div");box.append(b);await publicMapsInto(b,true);}
@@ -3029,7 +3034,7 @@ function aiTaskPanel(bar){
   }
   if(AI.help){const h=AI.help;panel.append(el("div",{class:"ai-analogy"},el("b",{},"Сначала попробуйте похожую задачу"),h.hint?el("p",{},"Подсказка: "+h.hint):null,el("h3",{},h.analogy.title||"Задача по аналогии"),el("p",{},h.analogy.task),el("button",{class:"btn sm ghost",type:"button",disabled:AI.busy,onclick:runSolve},"Нет, не могу")));}
   if(AI.solution){const s=AI.solution;panel.append(el("div",{class:"ai-analogy ai-solution"},el("b",{},"Решение · 0 баллов за эту задачу"),s.explanation?el("p",{},s.explanation):null,el("pre",{},el("code",{},s.solution)),el("p",{class:"ai-note"},"Получить баллы можно, решив аналогичное задание.")));}
-  if(AI.solutions){const list=el("div",{class:"ai-analogy"},el("b",{},"Другие решения · 0 баллов за эту задачу"));if(!AI.solutions.length)list.append(el("p",{},"Пока нет опубликованных решений этой задачи."));AI.solutions.forEach((s,i)=>list.append(el("div",{class:"ai-solution"},el("b",{},"Вариант "+(i+1)+" · оценка "+s.grade),s.summary?el("p",{},s.summary):null,el("pre",{},el("code",{},s.program)))));panel.append(list);if(AI.solutions.length)panel.append(el("p",{class:"ai-note"},"Получить баллы можно, решив аналогичное задание."));}
+  if(AI.solutions){const list=el("div",{class:"ai-analogy"},el("b",{},"Другие решения от ИИ · 0 баллов за эту задачу"));AI.solutions.forEach((s,i)=>list.append(el("div",{class:"ai-solution"},el("b",{},"Вариант "+(i+1)+" · создан ИИ"),s.summary?el("p",{},s.summary):null,el("pre",{},el("code",{},s.program)))));panel.append(list);if(AI.solutions.length)panel.append(el("p",{class:"ai-note"},"Получить баллы можно, решив аналогичное задание."));}
  }
  async function runCheck(source){
   if(AI.busy)return;AI.busy=true;AI.error=null;AI.help=null;AI.solution=null;AI.solutions=null;render();
@@ -3046,7 +3051,7 @@ function aiTaskPanel(bar){
   try{AI.solution=await api("ai/solve",{body:aiPayload("code")});AI.review=null;}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
  }
  async function runSolutions(){
-  if(AI.busy||!confirm("Посмотреть решения других учеников? За текущую задачу будет начислено 0 баллов. Получить баллы можно, решив аналогичное задание."))return;
+  if(AI.busy||!confirm("Показать три других решения, созданных ИИ? За текущую задачу будет начислено 0 баллов. Получить баллы можно, решив аналогичное задание."))return;
   AI.busy=true;AI.error=null;AI.solution=null;render();
   try{const r=await api("ai/solutions",{body:aiPayload("code")});AI.solutions=r.items||[];AI.review=null;}catch(e){AI.error=e.message;}finally{AI.busy=false;render();}
  }
@@ -3063,7 +3068,7 @@ async function aiDailyInto(root){
   if(!d.tasks.length){box.append(el("div",{class:"ts-empty"},el("b",{},"Сегодняшние задачи ещё не созданы"),el("p",{},"Они появятся автоматически после запуска ежедневной генерации.")));return;}
   const grid=el("div",{class:"ts-grid"}),progress=tpGet();
   for(const x of d.tasks){let t=TASKS.find(v=>v.sid===x.id&&v.ai);if(!t){t=userTaskFrom(x);TASKS.push(t);}const done=(progress[t.id]||{}).solved;
-   grid.append(el("button",{type:"button",class:"ts-t"+(done?" done":""),onclick:()=>{lsSet("rc-task",t.id);location.hash="#sim";}},el("span",{class:"ts-id"},"ИИ · задача дня"),el("b",{class:"ts-tt"},t.t),el("span",{class:"ts-lv"},"●".repeat(t.lv)+"○".repeat(4-t.lv)),el("span",{class:"ts-pt"},done?"✓ решено":"до "+t.pts+" б.")));}
+   grid.append(el("button",{type:"button",class:"ts-t"+(done?" done":""),onclick:()=>openTask(t.id)},el("span",{class:"ts-id"},"ИИ · задача дня"),el("b",{class:"ts-tt"},t.t),el("span",{class:"ts-lv"},"●".repeat(t.lv)+"○".repeat(4-t.lv)),el("span",{class:"ts-pt"},done?"✓ решено":"до "+t.pts+" б.")));}
   box.append(grid);
  }catch(e){box.textContent="";box.append(note(e.message,"bad"));}
 }
